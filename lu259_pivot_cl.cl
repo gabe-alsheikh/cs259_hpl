@@ -17,6 +17,10 @@ LUFact(
 	// Thread/work item index within group
 	int tIndex = get_local_id(0);
 	
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	// !!!!!IMPORTANT NOTE: WE ONLY HAVE ONE WORK GROUP!!!!!
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	
 	
 	// Each work group should contain one block
 	// eg. if block size is 16, then each group has 16 work items
@@ -26,7 +30,12 @@ LUFact(
 	// Actual global position of the thread in matrix
 	int globalIndex = groupStart + tIndex;
 
-	double denom = A[globalIndex*width_matrix+globalIndex];
+	__local double denom;
+	if (globalIndex == 0)
+		denom = A[globalIndex*width_matrix+globalIndex];
+	
+	
+	barrier(CLK_LOCAL_MEM_FENCE);
 	
 	L[globalIndex*width_matrix+globalIndex] = 1;
 	for (int i = globalIndex+1; i < matrix_width; i++)
