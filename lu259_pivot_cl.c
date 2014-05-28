@@ -9,7 +9,7 @@
 #include "lu259_cl.h"
 #endif
 
-#define BLOCK_SIZE 16f
+#define BLOCK_SIZE 16
 #define ITER 1 
 // Note: Iterations not implemented yet
 
