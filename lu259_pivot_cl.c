@@ -285,8 +285,8 @@ int main(int argc, char** argv)
 	//localWorkSize[1] = BLOCK_SIZE;
 	//globalWorkSize[0] = width_A;
 	//globalWorkSize[1] = height_A;
-	localWorkSize = BLOCK_SIZE*BLOCK_SIZE;
-	globalWorkSize = width_A;
+	localWorkSize = width_A; 
+	globalWorkSize = width_A; // One work group and N work-items
 
     // start timer
 	clock_t start = clock();
