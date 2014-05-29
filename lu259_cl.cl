@@ -7,7 +7,7 @@ LUFact(
 	__global double* y,
 	int width_matrix, int height_vector)
 {
-	// Thread/work item index within group
+	// Thread/work item index within group (represents rows)
 	int tIndex = get_local_id(0);
 	
 
