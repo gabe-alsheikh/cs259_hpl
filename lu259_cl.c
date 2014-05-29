@@ -50,7 +50,7 @@ int main(int argc, char** argv)
     double elapsed = 0;
 	srand(time(NULL));
 	
-	int N = 64;
+	int N = 512;
 	
 	char dir[100] = "./data";
 
@@ -269,8 +269,8 @@ int main(int argc, char** argv)
 	status |= clSetKernelArg(clKernel, 2, sizeof(cl_mem), (void *)&d_L);
 	status |= clSetKernelArg(clKernel, 3, sizeof(cl_mem), (void *)&d_b);
 	status |= clSetKernelArg(clKernel, 4, sizeof(cl_mem), (void *)&d_y);
-	status |= clSetKernelArg(clKernel, 5, sizeof(int), (void *)&width_matrix);
-	status |= clSetKernelArg(clKernel, 6, sizeof(int), (void *)&height_vector);
+	//status |= clSetKernelArg(clKernel, 5, sizeof(int), (void *)&width_matrix);
+	//status |= clSetKernelArg(clKernel, 6, sizeof(int), (void *)&height_vector);
 	
 	if (status != CL_SUCCESS)
 		printf("clSetKernelArg error(%d)\n", status);
@@ -345,7 +345,3 @@ int main(int argc, char** argv)
 	clReleaseProgram(program);
 	clReleaseCommandQueue(clCommandQue);
 }
-	
-	
-	
-	
