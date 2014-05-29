@@ -1,0 +1,31 @@
+#!/bin/bash
+
+if [[ $OPENCL_ROOT == "" ]]; then
+	OPENCL_ROOT=/opt/AMDAPP
+fi	
+
+src=$1
+dst=`echo $src | cut -d '.' -f1`
+
+FNAME="$dst.cl"
+
+if [ ! -e $FNAME ]; then
+	echo "file $FNAME cannot be found."
+	exit -1
+fi
+
+PROG_NAME=`echo $FNAME | sed 's/\./_/g'`
+
+rm -f $PROG_NAME".h"
+echo -e "const char* $PROG_NAME = " >> $PROG_NAME".h"
+while read line
+do 
+	echo -n -e '"'$line >> $PROG_NAME".h"
+	echo "\n"'"' >> $PROG_NAME".h"
+done < $FNAME
+
+echo ";" >> $PROG_NAME".h"
+
+echo "gcc -o ../bin/$dst"_ocl" $src -I$OPENCL_ROOT/include -L$OPENCL_ROOT/lib -lOpenCL -DTEST"
+gcc -o ../bin/$dst"_ocl" $src -I$OPENCL_ROOT/include -L$OPENCL_ROOT/lib/x86_64 -lOpenCL -DTEST
+
