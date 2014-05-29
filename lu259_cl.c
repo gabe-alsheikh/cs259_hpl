@@ -324,6 +324,9 @@ int main(int argc, char** argv)
 	printf("Average time: %.2f seconds\n", elapsed/ITER);
 	
 	// 10. clean up memory
+	free(A0);
+	free(b0);
+	
 	free(h_A);
 	free(h_L);
 	free(h_b);
