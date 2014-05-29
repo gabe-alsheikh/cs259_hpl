@@ -4,6 +4,7 @@
 #include <math.h>
 #include <CL/cl.h>
 #include <sys/time.h>
+#include <time.h>
 
 #ifndef FPGA_DEVICE
 #include "lu259_cl.h"
@@ -59,12 +60,20 @@ int main(int argc, char** argv)
 	if (argc>2)
 		strcpy(dir, argv[2]);
 		
+	// Allocate matrices and vectors
+	double *A = (double *) malloc(N*N*sizeof(double));
+	double *A0 = (double *) malloc(N*N*sizeof(double));
+	double *b = (double *) malloc(N*sizeof(double));
+	double *b0 = (double *) malloc(N*sizeof(double)); // ADDED; original b matrix before permutations
+	double *L = (double *) malloc(N*N*sizeof(double));
+	double *x = (double *) malloc(N*sizeof(double));
+	double *y = (double *) malloc(N*sizeof(double));
 	
-	
+	int i, j;
 	// Initialize A and b
-	for(int i = 0; i < N; i++)
+	for(i = 0; i < N; i++)
 	{
-		for(int j = 0; j < N; j++)
+		for(j = 0; j < N; j++)
 		{
 			double r = (double) rand();
 			if(r > RAND_MAX/2)
@@ -81,9 +90,9 @@ int main(int argc, char** argv)
 	
 	// Initialize L matrix, x,y vectors
 	// Added to ensure initial values are 0
-	for (int i = 0; i < N; i++)
+	for (i = 0; i < N; i++)
 	{
-		for (int j = 0; j < N; j++)
+		for (j = 0; j < N; j++)
 		{
 			L[i*N+j] = 0;
 		}
@@ -92,14 +101,6 @@ int main(int argc, char** argv)
 	}
 	
 	
-	// Allocate matrices and vectors
-	double *A = (double *) malloc(N*N*sizeof(double));
-	double *A0 = (double *) malloc(N*N*sizeof(double));
-	double *b = (double *) malloc(N*sizeof(double));
-	double *b0 = (double *) malloc(N*sizeof(double)); // ADDED; original b matrix before permutations
-	double *L = (double *) malloc(N*N*sizeof(double));
-	double *x = (double *) malloc(N*sizeof(double));
-	double *y = (double *) malloc(N*sizeof(double));
 	
 	
 	// 1. allocate host memory for matrices A and B
@@ -123,10 +124,8 @@ int main(int argc, char** argv)
 	
 	// Host pointers
 	double* h_A = A;
-	//double* h_A0 = A0;
 	double* h_L = L;
 	double* h_b = b;
-	//double* h_b0 = b0;
 	double* h_x = x;
 	double* h_y = y;
 	
@@ -191,10 +190,8 @@ int main(int argc, char** argv)
 
 	// OpenCL device memory for matrices
 	cl_mem d_A;
-	//cl_mem d_A0;
 	cl_mem d_L;
 	cl_mem d_b;
-	//cl_mem d_b0;
 	cl_mem d_x;
 	cl_mem d_y;
 	
@@ -207,10 +204,8 @@ int main(int argc, char** argv)
 	// Setup device memory
 	d_x = clCreateBuffer(context, CL_MEM_READ_WRITE, mem_size_x, NULL, &status);
 	d_A = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, mem_size_A, h_A, &status);
-	//d_A0 = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, mem_size_A0, h_A0, &status);
 	d_L = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, mem_size_L, h_L, &status);
 	d_b = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, mem_size_b, h_b, &status);
-	//d_b0 = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, mem_size_b0, h_b0, &status);
 	d_y = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, mem_size_y, h_y, &status);
 
 #ifndef FPGA_DEVICE
@@ -264,7 +259,7 @@ int main(int argc, char** argv)
 
 	// 7. Launch OpenCL kernel
 	//size_t localWorkSize[2], globalWorkSize[2];
-	size_t localWorkSize, globalWorkSize;
+	size_t localWorkSize[1], globalWorkSize[1];
 	
 	int width_matrix = width_A;
 	int height_vector = height_x;
@@ -285,17 +280,15 @@ int main(int argc, char** argv)
 	//localWorkSize[1] = BLOCK_SIZE;
 	//globalWorkSize[0] = width_A;
 	//globalWorkSize[1] = height_A;
-	localWorkSize = width_A; 
-	globalWorkSize = width_A; // One work group and N work-items
+	localWorkSize[0] = width_A; 
+	globalWorkSize[0] = width_A; // One work group and N work-items
 
     // start timer
 	clock_t start = clock();
 
     status = clEnqueueWriteBuffer(clCommandQue, d_A, CL_FALSE, 0, mem_size_A, h_A, 0, NULL, NULL);
-	//status = clEnqueueWriteBuffer(clCommandQue, d_A0, CL_FALSE, 0, mem_size_A0, h_A0, 0, NULL, NULL);
 	status = clEnqueueWriteBuffer(clCommandQue, d_L, CL_FALSE, 0, mem_size_L, h_L, 0, NULL, NULL);
     status = clEnqueueWriteBuffer(clCommandQue, d_b, CL_FALSE, 0, mem_size_b, h_b, 0, NULL, NULL);
-	//status = clEnqueueWriteBuffer(clCommandQue, d_b0, CL_FALSE, 0, mem_size_b0, h_b0, 0, NULL, NULL);
 	status = clEnqueueWriteBuffer(clCommandQue, d_y, CL_FALSE, 0, mem_size_y, h_y, 0, NULL, NULL);
 	
 	status = clEnqueueNDRangeKernel(clCommandQue, 
@@ -315,10 +308,10 @@ int main(int argc, char** argv)
 	
 	// Check result
 	double error = 0;
-	for(int i = 0; i < N; i++)
+	for(i = 0; i < N; i++)
 	{
 		double b_res = 0;
-		for(int j = 0; j < N; j++)
+		for(j = 0; j < N; j++)
 			b_res += A0[i*N+j] * x[j];
 		error += b_res > b0[i] ? b_res-b0[i] : b0[i]-b_res;
 	}
@@ -332,10 +325,8 @@ int main(int argc, char** argv)
 	
 	// 10. clean up memory
 	free(h_A);
-	free(h_A0);
 	free(h_L);
 	free(h_b);
-	free(h_b0);
 	free(h_x);
 	free(h_y);
 
