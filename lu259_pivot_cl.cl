@@ -1,6 +1,3 @@
-// Thread block size
-#define BLOCK_SIZE 16
-  
 __kernel void
 LUFact(
 	__global double* x,
@@ -8,44 +5,27 @@ LUFact(
 	__global double* L, 
 	__global double* b,
 	__global double* y,
-	int width_matrix, height_vector)
+	int width_matrix, int height_vector)
 {
-
-	// Group index within global
-	int gIndex = get_group_id(0);
-
 	// Thread/work item index within group
 	int tIndex = get_local_id(0);
 	
-	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	// !!!!!IMPORTANT NOTE: WE ONLY HAVE ONE WORK GROUP!!!!!
-	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	
-	
-	// Each work group should contain one block
-	// eg. if block size is 16, then each group has 16 work items
-	// Actual global start position of the group in matrix
-	int groupStart = gIndex*BlOCK_SIZE*BLOCK_SIZE;
-	
-	// Actual global position of the thread in matrix
-	int globalIndex = groupStart + tIndex;
 
 	__local double denom;
-	if (globalIndex == 0)
-		denom = A[globalIndex*width_matrix+globalIndex];
-	
+	if (tIndex == 0)
+		denom = A[tIndex*width_matrix+tIndex];
 	
 	barrier(CLK_LOCAL_MEM_FENCE);
-	
-	L[globalIndex*width_matrix+globalIndex] = 1;
-	for (int i = globalIndex+1; i < matrix_width; i++)
+
+	L[tIndex*width_matrix+tIndex] = 1;
+	for (int i = tIndex+1; i < width_matrix; i++)
 	{
-		double lval = A[i*matrix_width+globalIndex]/denom;
-		L[i*matrix_width+globalIndex] = lval;
+		double lval = A[i*width_matrix+tIndex]/denom;
+		L[i*width_matrix+tIndex] = lval;
 		lval = -lval;
-		for(int k = globalIndex+1; k < matrix_width; k++)
+		for(int k = tIndex+1; k < width_matrix; k++)
 		{
-			A[i*matrix_width+k] += lval*A[globalIndex*matrix_width+k];
+			A[i*width_matrix+k] += lval*A[tIndex*width_matrix+k];
 		}
 	}
 	
@@ -53,25 +33,21 @@ LUFact(
 
 	// A(N-1) becomes U
 	// Use forward substitution to solve Ly = Pb
-	double yi = b[globalIndex];
-	for(int j = 0; j < globalIndex; j++)
+	double yi = b[tIndex];
+	for(int j = 0; j < tIndex; j++)
 	{
-		yi -= L[globalIndex*matrix_width+j]*y[j];
+		yi -= L[tIndex*width_matrix+j]*y[j];
 	}	
-	y[globalIndex] = yi;
+	y[tIndex] = yi;
 	
 	
 	barrier(CLK_LOCAL_MEM_FENCE);
 	
 	// Use back substitution to solve Ux = y
-	double xi = y[globalIndex];
-	for(int j = globalIndex+1; j < matrix_width; j++)
-		xi -= A[globalIndex*matrix_width+j]*x[j];
-	x[globalIndex] = xi/A[globalIndex*matrix_width+globalIndex];
-	
+	double xi = y[tIndex];
+	for(int j = tIndex+1; j < width_matrix; j++)
+		xi -= A[tIndex*width_matrix+j]*x[j];
+	x[tIndex] = xi/A[tIndex*width_matrix+tIndex];
 	
 	barrier(CLK_LOCAL_MEM_FENCE);
-	
-	
-	
 }
