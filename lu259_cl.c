@@ -59,7 +59,9 @@ int main(int argc, char** argv)
 
 	if (argc>2)
 		strcpy(dir, argv[2]);
-		
+	
+	
+	
 	// Allocate matrices and vectors
 	double *A = (double *) malloc(N*N*sizeof(double));
 	double *A0 = (double *) malloc(N*N*sizeof(double));
@@ -182,6 +184,17 @@ int main(int argc, char** argv)
 	if (status != CL_SUCCESS)
 		printf("clGetDeviceIDs error(%d)\n", status);
 
+		
+	// GET MAX DEVICE LOCAL MEMORY SIZE	
+	cl_ulong mem_size;
+	clGetDeviceInfo(devices[0], CL_DEVICE_LOCAL_MEM_SIZE, sizeof(mem_size), &mem_size, NULL);
+    printf("CL_DEVICE_LOCAL_MEM_SIZE: %d KB\n", (unsigned int)(mem_size / 1024));
+	
+	// GET MAX NUMBER OF WORK ITEMS PER DIMENSION
+	//size_t workitem_size[3];
+	//cl_int ret = clGetDeviceInfo(devices[0], CL_DEVICE_MAX_WORK_ITEM_SIZES, sizeof(workitem_size), &workitem_size, NULL);
+	//printf("CL_DEVICE_MAX_WORK_ITEM_SIZES: %d / %d / %d\n", workitem_size[0], workitem_size[1], workitem_size[2]);
+	
     // Create a context and associate it with the devices
     cl_context context;
     context = clCreateContext(NULL, numDevices, devices, NULL, NULL, &status);
@@ -290,13 +303,13 @@ int main(int argc, char** argv)
 	status = clEnqueueWriteBuffer(clCommandQue, d_L, CL_FALSE, 0, mem_size_L, h_L, 0, NULL, NULL);
     status = clEnqueueWriteBuffer(clCommandQue, d_b, CL_FALSE, 0, mem_size_b, h_b, 0, NULL, NULL);
 	status = clEnqueueWriteBuffer(clCommandQue, d_y, CL_FALSE, 0, mem_size_y, h_y, 0, NULL, NULL);
-	
+	//printf("Enter the dragon\n");
 	status = clEnqueueNDRangeKernel(clCommandQue, 
 			clKernel, 1, NULL, globalWorkSize, 
 			localWorkSize, 0, NULL, NULL);
 	if (status != CL_SUCCESS)
 		printf("clEnqueueNDRangeKernel error(%d)\n", status);
-
+	//printf("Exit the dragon\n");
 	// 8. Retrieve result from device
 	status = clEnqueueReadBuffer(clCommandQue, d_x, CL_TRUE, 0, mem_size_x, h_x, 0, NULL, NULL);
 	if (status != CL_SUCCESS)
@@ -345,3 +358,7 @@ int main(int argc, char** argv)
 	clReleaseProgram(program);
 	clReleaseCommandQueue(clCommandQue);
 }
+	
+	
+	
+	
