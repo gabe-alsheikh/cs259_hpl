@@ -1,4 +1,4 @@
-#define N 512
+#define BLOCK_SIZE 64 // to be decreased later
 
 __kernel void
 LUFact(
@@ -6,66 +6,85 @@ LUFact(
 	__global double* A,
 	__global double* L,
 	__global double* b,
-	__global double* y)
+	__global double* y,
+	__global double* Acurr,
+	int N)
 {
-	// Thread/work item index within group (represents rows)
+	// One work group per row (N total)
+	// N/BLOCK_SIZE work items per group
+	int row = get_group_id(0);
 	int tIndex = get_local_id(0);
 	
-	// Local copies of the rows of A and L
-	//double At[N];
-	//double Lt[N];
-	//for(int i = 0; i < N; i++)
-    //At[i] = A[tIndex*N+i];
-	
-	local double denom;
-	__local double Acurr[N];
-	if (tIndex == 0) {
-		for(int i = 0; i < N; i++)
-			Acurr[i] = A[tIndex*N+i];
-	}
-	barrier(CLK_LOCAL_MEM_FENCE); // GLOBAL? (if change structure)
+	int cStart = BLOCK_SIZE*tIndex;
+	int cEnd = cStart+BLOCK_SIZE;
 
-	L[tIndex*N+tIndex] = 1;
+	// Local copies of the rows of A and L
+	double At[BLOCK_SIZE];
+	double Lt[BLOCK_SIZE];
+
+	for(int i = cStart; i < cEnd; i++)
+		At[i] = A[tIndex*N+i];
+
+	double denom;
+	__local double lval;
+	//__global double Acurr[N];
 	for(int n = 0; n < N; n++) {
+		if(row == n && cEnd > n) {
+			int c = n < cStart ? cStart : n;
+			for(; c < cEnd; c++)
+				Acurr[c] = At[c-cStart];
+		}
+		barrier(CLK_GLOBAL_MEM_FENCE);
+
 		denom = Acurr[n];
-		if(tIndex > n) {
-			double lval = A[tIndex*N+n]/denom;
-			L[tIndex*N+n] = lval;
+		if(row > n) {
+			if(n >= cStart && n < cEnd) {
+				lval = Acurr[n]/denom;
+				Lt[n-cStart] = lval;
+			}
+			barrier(CLK_LOCAL_MEM_FENCE);
 			lval = -lval;
-			for(int i = n+1; i < N; i++) {
-				A[tIndex*N+i] += lval*Acurr[i];
+			int i = n+1 < cStart ? cStart : n+1;
+			for(; i < cEnd; i++) {
+				At[i-cStart] += lval*Acurr[i];
 			}
 		}
-		
-		barrier(CLK_LOCAL_MEM_FENCE); // may be necessary
-		if(tIndex == n+1) {
-			for(int i = tIndex; i < N; i++)
-				Acurr[i] = A[tIndex*N+i];
-		}
-		barrier(CLK_LOCAL_MEM_FENCE); // should be necessary	
+		barrier(CLK_GLOBAL_MEM_FENCE);	
+		//if (row == 0 && tIndex == 3)
+		//printf(\"HERE2\");
 	}
 
 	// A(N-1) becomes U
 	// Use forward substitution to solve Ly = Pb
-	double yi = b[tIndex];
+	__local double yi;
+    	yi = b[row];
+	double sum = 0;
 	for(int i = 0; i < N; i++) {
-		if(i == tIndex) {
-			for(int j = 0; j < tIndex; j++) {
-				yi -= L[tIndex*N+j]*y[j];
-			}	
-			y[tIndex] = yi;
+		if(i == row) {
+			int e = row < cEnd ? row : cEnd;
+			for(int j = cStart; j < row && j < cEnd; j++)
+				sum += Lt[j-cStart]*y[j];
+			yi -= sum;
+			barrier(CLK_LOCAL_MEM_FENCE);
+			async_work_group_copy(y+row, &yi, 1, 0);
 		}
-		barrier(CLK_LOCAL_MEM_FENCE);
+		barrier(CLK_GLOBAL_MEM_FENCE);
 	}
 
 	// Use back substitution to solve Ux = y
-	double xi = y[tIndex];
+	__local double xi;
+    	xi = y[tIndex];
+	sum = 0;
 	for(int i = N-1; i >= 0; i--) {
-		if(i == tIndex) {
-			for(int j = tIndex+1; j < N; j++)
-				xi -= A[tIndex*N+j]*x[j];
-			x[tIndex] = xi/A[tIndex*N+tIndex];
+		if(i == row) {
+			int j = row+1 < cStart ? cStart : row+1;
+			for(; j < cEnd; j++)
+				sum += At[j-cStart]*x[j];
+			xi -= sum;
+			barrier(CLK_LOCAL_MEM_FENCE);
+			if(cStart <= row && row < cEnd)
+				x[row] = xi/At[row-cStart];
 		}
-		barrier(CLK_LOCAL_MEM_FENCE);
+		barrier(CLK_GLOBAL_MEM_FENCE);
 	}
 }
