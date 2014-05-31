@@ -301,15 +301,15 @@ int main(int argc, char** argv)
 	//localWorkSize[1] = BLOCK_SIZE;
 	//globalWorkSize[0] = width_A;
 	//globalWorkSize[1] = height_A;
-	localWorkSize[0] = BLOCK_SIZE; 
-	globalWorkSize[0] = width_A; // One work group and N work-items
+	localWorkSize[0] = N/BLOCK_SIZE; 
+	globalWorkSize[0] = (N*N)/BLOCK_SIZE;
 
-    // start timer
+    	// start timer
 	clock_t start = clock();
 
-    status = clEnqueueWriteBuffer(clCommandQue, d_A, CL_FALSE, 0, mem_size_A, h_A, 0, NULL, NULL);
+	status = clEnqueueWriteBuffer(clCommandQue, d_A, CL_FALSE, 0, mem_size_A, h_A, 0, NULL, NULL);
 	status = clEnqueueWriteBuffer(clCommandQue, d_L, CL_FALSE, 0, mem_size_L, h_L, 0, NULL, NULL);
-    status = clEnqueueWriteBuffer(clCommandQue, d_b, CL_FALSE, 0, mem_size_b, h_b, 0, NULL, NULL);
+    	status = clEnqueueWriteBuffer(clCommandQue, d_b, CL_FALSE, 0, mem_size_b, h_b, 0, NULL, NULL);
 	status = clEnqueueWriteBuffer(clCommandQue, d_y, CL_FALSE, 0, mem_size_y, h_y, 0, NULL, NULL);
 	status = clEnqueueWriteBuffer(clCommandQue, d_Acurr, CL_FALSE, 0, mem_size_Acurr, h_Acurr, 0, NULL, NULL);
 	//printf("Enter the dragon\n");
