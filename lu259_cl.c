@@ -10,7 +10,7 @@
 #include "lu259_cl.h"
 #endif
 
-#define BLOCK_SIZE 16
+#define BLOCK_SIZE 64
 #define ITER 1 
 // Note: Iterations not implemented yet
 
@@ -50,7 +50,7 @@ int main(int argc, char** argv)
     double elapsed = 0;
 	srand(time(NULL));
 	
-	int N = 512;
+	int N = 64;
 	
 	char dir[100] = "./data";
 
@@ -70,6 +70,7 @@ int main(int argc, char** argv)
 	double *L = (double *) malloc(N*N*sizeof(double));
 	double *x = (double *) malloc(N*sizeof(double));
 	double *y = (double *) malloc(N*sizeof(double));
+	double *Acurr = (double *) malloc(N*sizeof(double));
 	
 	int i, j;
 	// Initialize A and b
@@ -100,14 +101,15 @@ int main(int argc, char** argv)
 		}
 		y[i] = 0;
 		x[i] = 0;
+		Acurr[i] = 0;
 	}
 	
 	
 	
 	
 	// 1. allocate host memory for matrices A and B
-	int width_A, width_A0, width_L, height_A, height_A0, height_L, height_b, height_b0, height_x, height_y;
-	width_A = width_A0 = width_L = height_A = height_A0 = height_L = height_b = height_b0 = height_x = height_y = N;
+	int width_A, width_A0, width_L, height_A, height_A0, height_L, height_b, height_b0, height_x, height_y, width_Acurr;
+	width_A = width_A0 = width_L = height_A = height_A0 = height_L = height_b = height_b0 = height_x = height_y = width_Acurr = N;
 	
 	unsigned int size_A = width_A * height_A;
 	unsigned int size_A0 = width_A0 * height_A0;
@@ -116,6 +118,7 @@ int main(int argc, char** argv)
 	unsigned int size_b0 = height_b0;
 	unsigned int size_x = height_x;
 	unsigned int size_y = height_y;
+	unsigned int size_Acurr = width_Acurr;
 	unsigned int mem_size_A = sizeof(double) * size_A;
 	unsigned int mem_size_A0 = sizeof(double) * size_A0;
 	unsigned int mem_size_L = sizeof(double) * size_L;
@@ -123,6 +126,7 @@ int main(int argc, char** argv)
 	unsigned int mem_size_b0 = sizeof(double) * size_b0;
 	unsigned int mem_size_x = sizeof(double) * size_x;
 	unsigned int mem_size_y = sizeof(double) * size_y;
+	unsigned int mem_size_Acurr = sizeof(double) * size_Acurr;
 	
 	// Host pointers
 	double* h_A = A;
@@ -130,6 +134,7 @@ int main(int argc, char** argv)
 	double* h_b = b;
 	double* h_x = x;
 	double* h_y = y;
+	double* h_Acurr = Acurr;
 	
 	
 	// 5. Initialize OpenCL
@@ -207,6 +212,7 @@ int main(int argc, char** argv)
 	cl_mem d_b;
 	cl_mem d_x;
 	cl_mem d_y;
+	cl_mem d_Acurr;
 	
 	//Create a command-queue
 	clCommandQue = clCreateCommandQueue(context, devices[0], 0, &status);
@@ -220,6 +226,7 @@ int main(int argc, char** argv)
 	d_L = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, mem_size_L, h_L, &status);
 	d_b = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, mem_size_b, h_b, &status);
 	d_y = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, mem_size_y, h_y, &status);
+	d_Acurr = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, mem_size_Acurr, h_Acurr, &status);
 
 #ifndef FPGA_DEVICE
 	// WE CAN'T USE THIS UNLESS WE MAKE A HEADER FILE WITH A GIANT STRING OF THE KERNEL PROGRAM
@@ -282,7 +289,8 @@ int main(int argc, char** argv)
 	status |= clSetKernelArg(clKernel, 2, sizeof(cl_mem), (void *)&d_L);
 	status |= clSetKernelArg(clKernel, 3, sizeof(cl_mem), (void *)&d_b);
 	status |= clSetKernelArg(clKernel, 4, sizeof(cl_mem), (void *)&d_y);
-	//status |= clSetKernelArg(clKernel, 5, sizeof(int), (void *)&width_matrix);
+	status |= clSetKernelArg(clKernel, 5, sizeof(cl_mem), (void *)&d_Acurr);
+	status |= clSetKernelArg(clKernel, 6, sizeof(int), (void *)&N);
 	//status |= clSetKernelArg(clKernel, 6, sizeof(int), (void *)&height_vector);
 	
 	if (status != CL_SUCCESS)
@@ -293,7 +301,7 @@ int main(int argc, char** argv)
 	//localWorkSize[1] = BLOCK_SIZE;
 	//globalWorkSize[0] = width_A;
 	//globalWorkSize[1] = height_A;
-	localWorkSize[0] = width_A; 
+	localWorkSize[0] = BLOCK_SIZE; 
 	globalWorkSize[0] = width_A; // One work group and N work-items
 
     // start timer
@@ -303,6 +311,7 @@ int main(int argc, char** argv)
 	status = clEnqueueWriteBuffer(clCommandQue, d_L, CL_FALSE, 0, mem_size_L, h_L, 0, NULL, NULL);
     status = clEnqueueWriteBuffer(clCommandQue, d_b, CL_FALSE, 0, mem_size_b, h_b, 0, NULL, NULL);
 	status = clEnqueueWriteBuffer(clCommandQue, d_y, CL_FALSE, 0, mem_size_y, h_y, 0, NULL, NULL);
+	status = clEnqueueWriteBuffer(clCommandQue, d_Acurr, CL_FALSE, 0, mem_size_Acurr, h_Acurr, 0, NULL, NULL);
 	//printf("Enter the dragon\n");
 	status = clEnqueueNDRangeKernel(clCommandQue, 
 			clKernel, 1, NULL, globalWorkSize, 
@@ -345,12 +354,14 @@ int main(int argc, char** argv)
 	free(h_b);
 	free(h_x);
 	free(h_y);
+	free(h_Acurr);
 
 	clReleaseMemObject(d_A);
 	clReleaseMemObject(d_L);
 	clReleaseMemObject(d_b);
 	clReleaseMemObject(d_x);
 	clReleaseMemObject(d_y);
+	clReleaseMemObject(d_Acurr);
 
 	free(devices);
 	clReleaseContext(context);
