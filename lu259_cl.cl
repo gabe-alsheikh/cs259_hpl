@@ -44,7 +44,7 @@ LUFact(
 			}
 			barrier(CLK_LOCAL_MEM_FENCE);
 			lval = -lval;
-			int i = n+1 < cStart ? cStart : n+1;
+			int i = (n+1) < cStart ? cStart : (n+1);
 			for(; i < cEnd; i++) {
 				At[i-cStart] += lval*Acurr[i];
 			}
@@ -77,7 +77,7 @@ LUFact(
 	sum = 0;
 	for(int i = N-1; i >= 0; i--) {
 		if(i == row) {
-			int j = row+1 < cStart ? cStart : row+1;
+			int j = (row+1) < cStart ? cStart : (row+1);
 			for(; j < cEnd; j++)
 				sum += At[j-cStart]*x[j];
 			xi -= sum;
