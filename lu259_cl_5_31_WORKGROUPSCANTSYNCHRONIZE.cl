@@ -1,4 +1,4 @@
-#define BLOCK_SIZE 4 // to be decreased later
+#define BLOCK_SIZE 64 // to be decreased later
 
 __kernel void
 LUFact(
