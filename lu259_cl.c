@@ -10,7 +10,7 @@
 #include "lu259_cl.h"
 #endif
 
-#define BLOCK_SIZE 64
+#define BLOCK_SIZE 4
 #define ITER 1 
 // Note: Iterations not implemented yet
 
@@ -37,6 +37,21 @@ int load_file_to_memory(const char *filename, char **result) {
 	(*result)[size] = 0;
 
 	return size;
+}
+
+void show_matrix(double * matrix, char * fmt, int N)
+{
+	int i, j;
+	if (!fmt) fmt = "%8.4g";
+	for (i = 0; i < N; i++)
+	{
+		printf(i ? "      " : " [ ");
+		for (j = 0; j < N; j++)
+		{
+			printf(fmt, matrix[i*N+j]);
+			printf(j < N - 1 ? "  " : i == N - 1 ? " ]\n" : "\n");
+		}
+	}
 }
 
 /////////////////////////////////////////////////////////
@@ -104,7 +119,23 @@ int main(int argc, char** argv)
 		Acurr[i] = 0;
 	}
 	
+	// TEST A AND b MANUAL GENERATION
+	/*
+		for(i = 0; i < N; i++)
+		{
+			for(j = 0; j < N; j++)
+			{
+				if (i == j)
+					A[i*N+j] = A0[i*N+j] = 1;
+				else
+					A[i*N+j] = A0[i*N+j] = 0;
+			}
+			b[i] = b0[i] = (double) i/(10.0);
+		}
+		*/
+		// END GENERATION
 	
+	//show_matrix(A,0,N);
 	
 	
 	// 1. allocate host memory for matrices A and B
@@ -278,8 +309,8 @@ int main(int argc, char** argv)
 		printf("clCreateKernel error(%d)\n", status);
 
 	// 7. Launch OpenCL kernel
-	//size_t localWorkSize[2], globalWorkSize[2];
-	size_t localWorkSize[1], globalWorkSize[1];
+	size_t localWorkSize[2], globalWorkSize[2];
+	//size_t localWorkSize[1], globalWorkSize[1];
 	
 	int width_matrix = width_A;
 	int height_vector = height_x;
@@ -297,32 +328,64 @@ int main(int argc, char** argv)
 		printf("clSetKernelArg error(%d)\n", status);
 		
 	
-	//localWorkSize[0] = BLOCK_SIZE;
-	//localWorkSize[1] = BLOCK_SIZE;
-	//globalWorkSize[0] = width_A;
-	//globalWorkSize[1] = height_A;
-	localWorkSize[0] = N/BLOCK_SIZE; 
-	globalWorkSize[0] = (N*N)/BLOCK_SIZE;
+	localWorkSize[0] = N;
+	localWorkSize[1] = N;
+	globalWorkSize[0] = N;
+	globalWorkSize[1] = N;
+	//localWorkSize[0] = N;//(N)/BLOCK_SIZE; 
+	//globalWorkSize[0] = N;//(N*N)/BLOCK_SIZE;
 
-    	// start timer
+    // start timer
 	clock_t start = clock();
 
-	status = clEnqueueWriteBuffer(clCommandQue, d_A, CL_FALSE, 0, mem_size_A, h_A, 0, NULL, NULL);
+    status = clEnqueueWriteBuffer(clCommandQue, d_A, CL_FALSE, 0, mem_size_A, h_A, 0, NULL, NULL);
 	status = clEnqueueWriteBuffer(clCommandQue, d_L, CL_FALSE, 0, mem_size_L, h_L, 0, NULL, NULL);
-    	status = clEnqueueWriteBuffer(clCommandQue, d_b, CL_FALSE, 0, mem_size_b, h_b, 0, NULL, NULL);
+    status = clEnqueueWriteBuffer(clCommandQue, d_b, CL_FALSE, 0, mem_size_b, h_b, 0, NULL, NULL);
 	status = clEnqueueWriteBuffer(clCommandQue, d_y, CL_FALSE, 0, mem_size_y, h_y, 0, NULL, NULL);
 	status = clEnqueueWriteBuffer(clCommandQue, d_Acurr, CL_FALSE, 0, mem_size_Acurr, h_Acurr, 0, NULL, NULL);
 	//printf("Enter the dragon\n");
 	status = clEnqueueNDRangeKernel(clCommandQue, 
-			clKernel, 1, NULL, globalWorkSize, 
+			clKernel, 2, NULL, globalWorkSize, 
 			localWorkSize, 0, NULL, NULL);
 	if (status != CL_SUCCESS)
 		printf("clEnqueueNDRangeKernel error(%d)\n", status);
 	//printf("Exit the dragon\n");
 	// 8. Retrieve result from device
-	status = clEnqueueReadBuffer(clCommandQue, d_x, CL_TRUE, 0, mem_size_x, h_x, 0, NULL, NULL);
+	//status = clEnqueueReadBuffer(clCommandQue, d_x, CL_TRUE, 0, mem_size_x, h_x, 0, NULL, NULL);
+	status = clEnqueueReadBuffer(clCommandQue, d_A, CL_TRUE, 0, mem_size_A, h_A, 0, NULL, NULL);
+	status = clEnqueueReadBuffer(clCommandQue, d_L, CL_TRUE, 0, mem_size_L, h_L, 0, NULL, NULL);
 	if (status != CL_SUCCESS)
 		printf("clEnqueueReadBuffer error(%d)\n", status);
+	
+	//show_matrix(A,0,N);
+	//show_matrix(L,0,N);
+	
+	
+	// TEMPORARILY ADDED IN FOR DEBUGGING PURPOSES
+	for(i = 0; i < N; i++)
+		{
+			double yi = b[i];
+			for(j = 0; j < i; j++)
+			{
+				yi -= L[i*N+j]*y[j];
+			}	
+			y[i] = yi;
+		}
+
+		// Use back substitution to solve Ux = y
+		for(i = N-1; i >= 0; i--)
+		{
+			double xi = y[i];
+			for(j = i+1; j < N; j++)
+				xi -= A[i*N+j]*x[j];
+			x[i] = xi/A[i*N+i];
+		}
+	// END TEMPORARILY ADDED IN
+	
+	
+	//show_matrix(b,0,N);
+	//show_matrix(b0,0,N);
+	//show_matrix(x,0,N);
 	
 	// stop timer
 	clock_t end = clock();
@@ -336,6 +399,7 @@ int main(int argc, char** argv)
 		for(j = 0; j < N; j++)
 			b_res += A0[i*N+j] * x[j];
 		error += b_res > b0[i] ? b_res-b0[i] : b0[i]-b_res;
+		//printf("b_res is: %f\n", b_res);
 	}
 		
 	double epsilonPerRow = 0.01;
