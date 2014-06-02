@@ -72,8 +72,8 @@ int main(int argc, char** argv)
 	if (argc>1)
 		N = atoi(argv[1]);
 
-	if (argc>2)
-		strcpy(dir, argv[2]);
+	//if (argc>2)
+	//	strcpy(dir, argv[2]);
 	
 	
 	
@@ -273,7 +273,7 @@ int main(int argc, char** argv)
 #else
 	// Load binary from disk
 	unsigned char *kernelbinary;
-	char *xclbin = argv[3];
+	char *xclbin = argv[2];
 	printf("loading %s\n", xclbin);
 	int n_i = load_file_to_memory(xclbin, (char **) &kernelbinary);
 	if (n_i < 0) {
@@ -320,8 +320,8 @@ int main(int argc, char** argv)
 	status |= clSetKernelArg(clKernel, 2, sizeof(cl_mem), (void *)&d_L);
 	status |= clSetKernelArg(clKernel, 3, sizeof(cl_mem), (void *)&d_b);
 	status |= clSetKernelArg(clKernel, 4, sizeof(cl_mem), (void *)&d_y);
-	//status |= clSetKernelArg(clKernel, 5, sizeof(cl_mem), (void *)&d_Acurr);
-	//status |= clSetKernelArg(clKernel, 6, sizeof(int), (void *)&N);
+	status |= clSetKernelArg(clKernel, 5, sizeof(cl_mem), (void *)&d_Acurr);
+	status |= clSetKernelArg(clKernel, 6, sizeof(int), (void *)&N);
 	//status |= clSetKernelArg(clKernel, 6, sizeof(int), (void *)&height_vector);
 	
 	if (status != CL_SUCCESS)
@@ -342,7 +342,7 @@ int main(int argc, char** argv)
 	status = clEnqueueWriteBuffer(clCommandQue, d_L, CL_FALSE, 0, mem_size_L, h_L, 0, NULL, NULL);
     status = clEnqueueWriteBuffer(clCommandQue, d_b, CL_FALSE, 0, mem_size_b, h_b, 0, NULL, NULL);
 	status = clEnqueueWriteBuffer(clCommandQue, d_y, CL_FALSE, 0, mem_size_y, h_y, 0, NULL, NULL);
-	//status = clEnqueueWriteBuffer(clCommandQue, d_Acurr, CL_FALSE, 0, mem_size_Acurr, h_Acurr, 0, NULL, NULL);
+	status = clEnqueueWriteBuffer(clCommandQue, d_Acurr, CL_FALSE, 0, mem_size_Acurr, h_Acurr, 0, NULL, NULL);
 	//printf("Enter the dragon\n");
 	status = clEnqueueNDRangeKernel(clCommandQue, 
 			clKernel, 1, NULL, globalWorkSize, 
