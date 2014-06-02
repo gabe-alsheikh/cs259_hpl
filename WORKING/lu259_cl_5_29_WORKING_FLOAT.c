@@ -222,9 +222,9 @@ int main(int argc, char** argv)
 
 		
 	// GET MAX DEVICE LOCAL MEMORY SIZE	
-	cl_ulong mem_size;
-	clGetDeviceInfo(devices[0], CL_DEVICE_LOCAL_MEM_SIZE, sizeof(mem_size), &mem_size, NULL);
-    printf("CL_DEVICE_LOCAL_MEM_SIZE: %d KB\n", (unsigned int)(mem_size / 1024));
+	//cl_ulong mem_size;
+	//clGetDeviceInfo(devices[0], CL_DEVICE_LOCAL_MEM_SIZE, sizeof(mem_size), &mem_size, NULL);
+    //printf("CL_DEVICE_LOCAL_MEM_SIZE: %d KB\n", (unsigned int)(mem_size / 1024));
 	
 	// GET MAX NUMBER OF WORK ITEMS PER DIMENSION
 	//size_t workitem_size[3];
@@ -276,22 +276,26 @@ int main(int argc, char** argv)
 	char *xclbin = argv[2];
 	printf("loading %s\n", xclbin);
 	int n_i = load_file_to_memory(xclbin, (char **) &kernelbinary);
+	printf("done loading\n");
 	if (n_i < 0) {
 		printf("ERROR: failed to load kernel from xclbin: %s\n", xclbin);
 		return -1;
 	}
 	size_t n_bit = n_i;
-
+	printf("creating program with binary\n");
 	// Create the compute program from offline
 	program = clCreateProgramWithBinary(context, 1, &devices[0], &n_bit,
 			(const unsigned char **) &kernelbinary, NULL, &status);
+
 	if ((!program) || (status != CL_SUCCESS)) {
 		printf("Error: Failed to create compute program from binary %d!\n", status);
 		return -1;
 	}
-
+	printf("done creating program with binary\n");
+	printf("building program\n");
 	// Build the program executable
 	status = clBuildProgram(program, 0, NULL, NULL, NULL, NULL);
+	printf("done building program\n");
 #endif
 
 	if (status != 0) {
@@ -343,24 +347,26 @@ int main(int argc, char** argv)
     status = clEnqueueWriteBuffer(clCommandQue, d_b, CL_FALSE, 0, mem_size_b, h_b, 0, NULL, NULL);
 	status = clEnqueueWriteBuffer(clCommandQue, d_y, CL_FALSE, 0, mem_size_y, h_y, 0, NULL, NULL);
 	status = clEnqueueWriteBuffer(clCommandQue, d_Acurr, CL_FALSE, 0, mem_size_Acurr, h_Acurr, 0, NULL, NULL);
-	//printf("Enter the dragon\n");
+	printf("Enter the dragon\n");
 	status = clEnqueueNDRangeKernel(clCommandQue, 
 			clKernel, 1, NULL, globalWorkSize, 
 			localWorkSize, 0, NULL, NULL);
 	if (status != CL_SUCCESS)
 		printf("clEnqueueNDRangeKernel error(%d)\n", status);
-	//printf("Exit the dragon\n");
+	printf("Exit the dragon\n");
 	// 8. Retrieve result from device
 	status = clEnqueueReadBuffer(clCommandQue, d_x, CL_TRUE, 0, mem_size_x, h_x, 0, NULL, NULL);
+	printf("HERE1\n");
 	//status = clEnqueueReadBuffer(clCommandQue, d_A, CL_TRUE, 0, mem_size_A, h_A, 0, NULL, NULL);
 	//status = clEnqueueReadBuffer(clCommandQue, d_L, CL_TRUE, 0, mem_size_L, h_L, 0, NULL, NULL);
+	printf("HERE2\n");
 	if (status != CL_SUCCESS)
 		printf("clEnqueueReadBuffer error(%d)\n", status);
-	
+	printf("HERE3\n");
 	//show_matrix(A,0,N);
 	//show_matrix(L,0,N);
 	
-	
+	printf("HERE4\n");
 	// TEMPORARILY ADDED IN FOR DEBUGGING PURPOSES
 	/*for(i = 0; i < N; i++)
 		{
@@ -382,15 +388,16 @@ int main(int argc, char** argv)
 		}
 	// END TEMPORARILY ADDED IN
 	*/
-	
+	printf("HERE5\n");
 	//show_matrix(b,0,N);
 	//show_matrix(b0,0,N);
 	//show_matrix(x,0,N);
-	
+	printf("So far so good\n");
 	// stop timer
 	clock_t end = clock();
 	elapsed += ((double)(end-start)) / CLOCKS_PER_SEC;
 	
+	printf("LU decomposition done. Now to check\n");
 	// Check result
 	float error = 0;
 	for(i = 0; i < N; i++)
