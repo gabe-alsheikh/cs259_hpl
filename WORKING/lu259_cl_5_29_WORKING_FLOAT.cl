@@ -1,12 +1,12 @@
-#define N 4
-
 __kernel void
 LUFact(
 	__global float* x,
 	__global float* A,
 	__global float* L,
 	__global float* b,
-	__global float* y)
+	__global float* y,
+	__global float* Acurr,
+	int N)
 {
 	// Thread/work item index within group (represents rows)
 	int tIndex = get_local_id(0);
@@ -17,8 +17,8 @@ LUFact(
 	//for(int i = 0; i < N; i++)
     //At[i] = A[tIndex*N+i];
 	
-	local float denom;
-	__local float Acurr[N];
+	float denom;
+	//__local float Acurr[N];
 	if (tIndex == 0) {
 		for(int i = 0; i < N; i++)
 			Acurr[i] = A[tIndex*N+i];
