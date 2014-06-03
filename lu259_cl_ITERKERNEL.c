@@ -39,7 +39,7 @@ int load_file_to_memory(const char *filename, char **result) {
 	return size;
 }
 
-void show_matrix(double * matrix, char * fmt, int N)
+void show_matrix(float * matrix, char * fmt, int N)
 {
 	int i, j;
 	if (!fmt) fmt = "%8.4g";
@@ -78,29 +78,28 @@ int main(int argc, char** argv)
 	
 	
 	// Allocate matrices and vectors
-	double *A = (double *) malloc(N*N*sizeof(double));
-	double *A0 = (double *) malloc(N*N*sizeof(double));
-	double *b = (double *) malloc(N*sizeof(double));
-	double *b0 = (double *) malloc(N*sizeof(double)); // ADDED; original b matrix before permutations
-	double *L = (double *) malloc(N*N*sizeof(double));
-	double *x = (double *) malloc(N*sizeof(double));
-	double *y = (double *) malloc(N*sizeof(double));
-	double *Acurr = (double *) malloc(N*sizeof(double));
+	float *A = (float *) malloc(N*N*sizeof(float));
+	float *A0 = (float *) malloc(N*N*sizeof(float));
+	float *b = (float *) malloc(N*sizeof(float));
+	float *b0 = (float *) malloc(N*sizeof(float)); // ADDED; original b matrix before permutations
+	float *L = (float *) malloc(N*N*sizeof(float));
+	float *x = (float *) malloc(N*sizeof(float));
+	float *y = (float *) malloc(N*sizeof(float));
+	float *Acurr = (float *) malloc(N*sizeof(float));
 	
 	int i, j;
 	// Initialize A and b
-	printf("%d\n", RAND_MAX);
 	for(i = 0; i < N; i++)
 	{
 		for(j = 0; j < N; j++)
 		{
-			double r = (double) (rand() % 10000);
+			float r = (float) (rand() % 10000);
 			if(r > (10000/2))
 				A[i*N+j] = A0[i*N+j] = -(r-10000/2)/(10000/2);
 			else
 				A[i*N+j] = A0[i*N+j] = r/(10000/2);
 		}
-		double r = (double) (rand() % 10000);
+		float r = (float) (rand() % 10000);
 		if(r > (10000/2))
 			b[i] = b0[i] = -(r-10000/2)/(10000/2);
 		else
@@ -131,7 +130,7 @@ int main(int argc, char** argv)
 				else
 					A[i*N+j] = A0[i*N+j] = 0;
 			}
-			b[i] = b0[i] = (double) i/(10.0);
+			b[i] = b0[i] = (float) i/(10.0);
 		}
 		*/
 		// END GENERATION
@@ -151,22 +150,22 @@ int main(int argc, char** argv)
 	unsigned int size_x = height_x;
 	unsigned int size_y = height_y;
 	unsigned int size_Acurr = width_Acurr;
-	unsigned int mem_size_A = sizeof(double) * size_A;
-	unsigned int mem_size_A0 = sizeof(double) * size_A0;
-	unsigned int mem_size_L = sizeof(double) * size_L;
-	unsigned int mem_size_b = sizeof(double) * size_b;
-	unsigned int mem_size_b0 = sizeof(double) * size_b0;
-	unsigned int mem_size_x = sizeof(double) * size_x;
-	unsigned int mem_size_y = sizeof(double) * size_y;
-	unsigned int mem_size_Acurr = sizeof(double) * size_Acurr;
+	unsigned int mem_size_A = sizeof(float) * size_A;
+	unsigned int mem_size_A0 = sizeof(float) * size_A0;
+	unsigned int mem_size_L = sizeof(float) * size_L;
+	unsigned int mem_size_b = sizeof(float) * size_b;
+	unsigned int mem_size_b0 = sizeof(float) * size_b0;
+	unsigned int mem_size_x = sizeof(float) * size_x;
+	unsigned int mem_size_y = sizeof(float) * size_y;
+	unsigned int mem_size_Acurr = sizeof(float) * size_Acurr;
 	
 	// Host pointers
-	double* h_A = A;
-	double* h_L = L;
-	double* h_b = b;
-	double* h_x = x;
-	double* h_y = y;
-	double* h_Acurr = Acurr;
+	float* h_A = A;
+	float* h_L = L;
+	float* h_b = b;
+	float* h_x = x;
+	float* h_y = y;
+	float* h_Acurr = Acurr;
 	
 	
 	// 5. Initialize OpenCL
@@ -315,17 +314,22 @@ int main(int argc, char** argv)
 
 	// 7. Launch OpenCL kernel
 	
+	
+	status |= clSetKernelArg(clKernel, 0, sizeof(cl_mem), (void *)&d_A);
+	status |= clSetKernelArg(clKernel, 2, sizeof(int), (void *)&N);
 	// start timer
 	clock_t start = clock();
+	status = clEnqueueWriteBuffer(clCommandQue, d_A, CL_FALSE, 0, mem_size_A, h_A, 0, NULL, NULL);
+	
 	int n;
-	for (n = 0; n < N-1; n++)
+	for (n = 0; n < N; n++)
 	{
 		size_t localWorkSize[1], globalWorkSize[1];
 		
 		//status  = clSetKernelArg(clKernel, 0, sizeof(cl_mem), (void *)&d_x);
-		status |= clSetKernelArg(clKernel, 0, sizeof(cl_mem), (void *)&d_A);
+		//status |= clSetKernelArg(clKernel, 0, sizeof(cl_mem), (void *)&d_A);
 		status |= clSetKernelArg(clKernel, 1, sizeof(int), (void *)&n);
-		status |= clSetKernelArg(clKernel, 2, sizeof(int), (void *)&N);
+		//status |= clSetKernelArg(clKernel, 2, sizeof(int), (void *)&N);
 		//status |= clSetKernelArg(clKernel, 1, sizeof(cl_mem), (void *)&d_L);
 		//status |= clSetKernelArg(clKernel, 3, sizeof(cl_mem), (void *)&d_b);
 		//status |= clSetKernelArg(clKernel, 4, sizeof(cl_mem), (void *)&d_y);
@@ -341,10 +345,10 @@ int main(int argc, char** argv)
 		//localWorkSize[1] = BLOCK_SIZE;
 		//globalWorkSize[0] = width_A;
 		//globalWorkSize[1] = height_A;
-		localWorkSize[0] = 1;//(N)/BLOCK_SIZE; 
-		globalWorkSize[0] = N-n-1;//(N*N)/BLOCK_SIZE;
+		localWorkSize[0] = (N)/BLOCK_SIZE; //1;
+		globalWorkSize[0] = (N*N)/BLOCK_SIZE; //N-n-1;
 
-		status = clEnqueueWriteBuffer(clCommandQue, d_A, CL_FALSE, 0, mem_size_A, h_A, 0, NULL, NULL);
+		//status = clEnqueueWriteBuffer(clCommandQue, d_A, CL_FALSE, 0, mem_size_A, h_A, 0, NULL, NULL);
 		//status = clEnqueueWriteBuffer(clCommandQue, d_L, CL_FALSE, 0, mem_size_L, h_L, 0, NULL, NULL);
 		//status = clEnqueueWriteBuffer(clCommandQue, d_b, CL_FALSE, 0, mem_size_b, h_b, 0, NULL, NULL);
 		//status = clEnqueueWriteBuffer(clCommandQue, d_y, CL_FALSE, 0, mem_size_y, h_y, 0, NULL, NULL);
@@ -358,14 +362,21 @@ int main(int argc, char** argv)
 		//printf("Exit the dragon\n");
 		// 8. Retrieve result from device
 		//status = clEnqueueReadBuffer(clCommandQue, d_x, CL_TRUE, 0, mem_size_x, h_x, 0, NULL, NULL);
-		//printf("HERE1\n");
-		status = clEnqueueReadBuffer(clCommandQue, d_A, CL_TRUE, 0, mem_size_A, h_A, 0, NULL, NULL);
+		//status = clEnqueueReadBuffer(clCommandQue, d_A, CL_TRUE, 0, mem_size_A, h_A, 0, NULL, NULL);
 		//status = clEnqueueReadBuffer(clCommandQue, d_L, CL_TRUE, 0, mem_size_L, h_L, 0, NULL, NULL);
 		//printf("HERE2\n");
-		if (status != CL_SUCCESS)
-			printf("clEnqueueReadBuffer error(%d)\n", status);
-		//printf("HERE3\n");
+		//if (status != CL_SUCCESS)
+		//	printf("clEnqueueReadBuffer error(%d)\n", status);
+		//printf("HERE1\n");
+		
+		printf("ITERATION %d COMPLETE\n", n);
+		
 	}
+	status = clEnqueueReadBuffer(clCommandQue, d_A, CL_TRUE, 0, mem_size_A, h_A, 0, NULL, NULL);
+	//status = clEnqueueReadBuffer(clCommandQue, d_L, CL_TRUE, 0, mem_size_L, h_L, 0, NULL, NULL);
+	//printf("HERE2\n");
+	if (status != CL_SUCCESS)
+		printf("clEnqueueReadBuffer error(%d)\n", status);
 	//show_matrix(A,0,N);
 	//show_matrix(L,0,N);
 	
@@ -373,10 +384,10 @@ int main(int argc, char** argv)
 	// TEMPORARILY ADDED IN FOR DEBUGGING PURPOSES
 	for(i = 0; i < N; i++)
 		{
-			double yi = b[i];
+			float yi = b[i];
 			for(j = 0; j < i; j++)
 			{
-				yi -= L[i*N+j]*y[j];
+				yi -= A[i*N+j]*y[j];
 			}	
 			y[i] = yi;
 		}
@@ -384,7 +395,7 @@ int main(int argc, char** argv)
 		// Use back substitution to solve Ux = y
 		for(i = N-1; i >= 0; i--)
 		{
-			double xi = y[i];
+			float xi = y[i];
 			for(j = i+1; j < N; j++)
 				xi -= A[i*N+j]*x[j];
 			x[i] = xi/A[i*N+i];
