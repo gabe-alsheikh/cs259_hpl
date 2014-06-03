@@ -101,7 +101,7 @@ int main(int argc, char** argv)
 				A[i*N+j] = A0[i*N+j] = r/(10000/2);
 		}
 		float r = (float) (rand() % 10000);
-		if(r > 10000/2))
+		if(r > (10000/2))
 			b[i] = b0[i] = -(r-10000/2)/(10000/2);
 		else
 			b[i] = b0[i] = r/(10000/2);
