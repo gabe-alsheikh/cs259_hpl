@@ -413,7 +413,7 @@ int main(int argc, char** argv)
 		printf("b_res is: %f\n", b_res);
 	}
 		
-	double epsilonPerRow = 0.5;
+	double epsilonPerRow = 0.01;
 	if(error < N*epsilonPerRow)
 		passed++;
 		
