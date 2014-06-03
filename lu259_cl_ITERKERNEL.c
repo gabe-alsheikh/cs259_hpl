@@ -89,21 +89,22 @@ int main(int argc, char** argv)
 	
 	int i, j;
 	// Initialize A and b
+	printf("%d\n", RAND_MAX);
 	for(i = 0; i < N; i++)
 	{
 		for(j = 0; j < N; j++)
 		{
-			float r = (float) rand();
-			if(r > RAND_MAX/2)
-				A[i*N+j] = A0[i*N+j] = -(r-RAND_MAX/2)/(RAND_MAX/2);
+			float r = (float) (rand() % 10000);
+			if(r > (10000/2))
+				A[i*N+j] = A0[i*N+j] = -(r-10000/2)/(10000/2);
 			else
-				A[i*N+j] = A0[i*N+j] = r/(RAND_MAX/2);
+				A[i*N+j] = A0[i*N+j] = r/(10000/2);
 		}
-		float r = (float) rand();
-		if(r > RAND_MAX/2)
-			b[i] = b0[i] = -(r-RAND_MAX/2)/(RAND_MAX/2);
+		float r = (float) (rand() % 10000);
+		if(r > 10000/2))
+			b[i] = b0[i] = -(r-10000/2)/(10000/2);
 		else
-			b[i] = b0[i] = r/(RAND_MAX/2);
+			b[i] = b0[i] = r/(10000/2);
 	}
 	
 	// Initialize L matrix, x,y vectors
@@ -135,7 +136,7 @@ int main(int argc, char** argv)
 		*/
 		// END GENERATION
 	
-	show_matrix(A,0,N);
+	//show_matrix(A,0,N);
 	
 	
 	// 1. allocate host memory for matrices A and B
@@ -365,7 +366,7 @@ int main(int argc, char** argv)
 			printf("clEnqueueReadBuffer error(%d)\n", status);
 		//printf("HERE3\n");
 	}
-	show_matrix(A,0,N);
+	//show_matrix(A,0,N);
 	//show_matrix(L,0,N);
 	
 	printf("HERE4\n");
@@ -410,7 +411,7 @@ int main(int argc, char** argv)
 		//if ((b_res - 0.01) < b0[i] || (b_res + 0.01) > b0[i])
 			//b_res = b0[i];
 		error += b_res > b0[i] ? b_res-b0[i] : b0[i]-b_res;
-		printf("b_res is: %f\n", b_res);
+		//printf("b_res is: %f\n", b_res);
 	}
 		
 	double epsilonPerRow = 0.01;
