@@ -39,7 +39,7 @@ int load_file_to_memory(const char *filename, char **result) {
 	return size;
 }
 
-void show_matrix(float * matrix, char * fmt, int N)
+void show_matrix(double * matrix, char * fmt, int N)
 {
 	int i, j;
 	if (!fmt) fmt = "%8.4g";
@@ -78,14 +78,14 @@ int main(int argc, char** argv)
 	
 	
 	// Allocate matrices and vectors
-	float *A = (float *) malloc(N*N*sizeof(float));
-	float *A0 = (float *) malloc(N*N*sizeof(float));
-	float *b = (float *) malloc(N*sizeof(float));
-	float *b0 = (float *) malloc(N*sizeof(float)); // ADDED; original b matrix before permutations
-	float *L = (float *) malloc(N*N*sizeof(float));
-	float *x = (float *) malloc(N*sizeof(float));
-	float *y = (float *) malloc(N*sizeof(float));
-	float *Acurr = (float *) malloc(N*sizeof(float));
+	double *A = (double *) malloc(N*N*sizeof(double));
+	double *A0 = (double *) malloc(N*N*sizeof(double));
+	double *b = (double *) malloc(N*sizeof(double));
+	double *b0 = (double *) malloc(N*sizeof(double)); // ADDED; original b matrix before permutations
+	double *L = (double *) malloc(N*N*sizeof(double));
+	double *x = (double *) malloc(N*sizeof(double));
+	double *y = (double *) malloc(N*sizeof(double));
+	double *Acurr = (double *) malloc(N*sizeof(double));
 	
 	int i, j;
 	// Initialize A and b
@@ -93,13 +93,13 @@ int main(int argc, char** argv)
 	{
 		for(j = 0; j < N; j++)
 		{
-			float r = (float) (rand() % 10000);
+			double r = (double) (rand() % 10000);
 			if(r > (10000/2))
 				A[i*N+j] = A0[i*N+j] = -(r-10000/2)/(10000/2);
 			else
 				A[i*N+j] = A0[i*N+j] = r/(10000/2);
 		}
-		float r = (float) (rand() % 10000);
+		double r = (double) (rand() % 10000);
 		if(r > (10000/2))
 			b[i] = b0[i] = -(r-10000/2)/(10000/2);
 		else
@@ -130,7 +130,7 @@ int main(int argc, char** argv)
 				else
 					A[i*N+j] = A0[i*N+j] = 0;
 			}
-			b[i] = b0[i] = (float) i/(10.0);
+			b[i] = b0[i] = (double) i/(10.0);
 		}
 		*/
 		// END GENERATION
@@ -150,22 +150,22 @@ int main(int argc, char** argv)
 	unsigned int size_x = height_x;
 	unsigned int size_y = height_y;
 	unsigned int size_Acurr = width_Acurr;
-	unsigned int mem_size_A = sizeof(float) * size_A;
-	unsigned int mem_size_A0 = sizeof(float) * size_A0;
-	unsigned int mem_size_L = sizeof(float) * size_L;
-	unsigned int mem_size_b = sizeof(float) * size_b;
-	unsigned int mem_size_b0 = sizeof(float) * size_b0;
-	unsigned int mem_size_x = sizeof(float) * size_x;
-	unsigned int mem_size_y = sizeof(float) * size_y;
-	unsigned int mem_size_Acurr = sizeof(float) * size_Acurr;
+	unsigned int mem_size_A = sizeof(double) * size_A;
+	unsigned int mem_size_A0 = sizeof(double) * size_A0;
+	unsigned int mem_size_L = sizeof(double) * size_L;
+	unsigned int mem_size_b = sizeof(double) * size_b;
+	unsigned int mem_size_b0 = sizeof(double) * size_b0;
+	unsigned int mem_size_x = sizeof(double) * size_x;
+	unsigned int mem_size_y = sizeof(double) * size_y;
+	unsigned int mem_size_Acurr = sizeof(double) * size_Acurr;
 	
 	// Host pointers
-	float* h_A = A;
-	float* h_L = L;
-	float* h_b = b;
-	float* h_x = x;
-	float* h_y = y;
-	float* h_Acurr = Acurr;
+	double* h_A = A;
+	double* h_L = L;
+	double* h_b = b;
+	double* h_x = x;
+	double* h_y = y;
+	double* h_Acurr = Acurr;
 	
 	
 	// 5. Initialize OpenCL
@@ -315,14 +315,14 @@ int main(int argc, char** argv)
 	// 7. Launch OpenCL kernel
 	
 	
-	status |= clSetKernelArg(clKernel, 0, sizeof(cl_mem), (void *)&d_A);
+	status = clSetKernelArg(clKernel, 0, sizeof(cl_mem), (void *)&d_A);
 	status |= clSetKernelArg(clKernel, 2, sizeof(int), (void *)&N);
 	// start timer
 	clock_t start = clock();
 	status = clEnqueueWriteBuffer(clCommandQue, d_A, CL_FALSE, 0, mem_size_A, h_A, 0, NULL, NULL);
 	
 	int n;
-	for (n = 0; n < N; n++)
+	for (n = 0; n < N-1; n++)
 	{
 		size_t localWorkSize[1], globalWorkSize[1];
 		
@@ -345,8 +345,8 @@ int main(int argc, char** argv)
 		//localWorkSize[1] = BLOCK_SIZE;
 		//globalWorkSize[0] = width_A;
 		//globalWorkSize[1] = height_A;
-		localWorkSize[0] = (N)/BLOCK_SIZE; //1;
-		globalWorkSize[0] = (N*N)/BLOCK_SIZE; //N-n-1;
+		localWorkSize[0] = N/BLOCK_SIZE; //1;
+		globalWorkSize[0] = (N-n-1)*N/BLOCK_SIZE; //N-n-1;
 
 		//status = clEnqueueWriteBuffer(clCommandQue, d_A, CL_FALSE, 0, mem_size_A, h_A, 0, NULL, NULL);
 		//status = clEnqueueWriteBuffer(clCommandQue, d_L, CL_FALSE, 0, mem_size_L, h_L, 0, NULL, NULL);
@@ -369,7 +369,7 @@ int main(int argc, char** argv)
 		//	printf("clEnqueueReadBuffer error(%d)\n", status);
 		//printf("HERE1\n");
 		
-		printf("ITERATION %d COMPLETE\n", n);
+		//printf("ITERATION %d COMPLETE\n", n);
 		
 	}
 	status = clEnqueueReadBuffer(clCommandQue, d_A, CL_TRUE, 0, mem_size_A, h_A, 0, NULL, NULL);
@@ -380,11 +380,11 @@ int main(int argc, char** argv)
 	//show_matrix(A,0,N);
 	//show_matrix(L,0,N);
 	
-	printf("HERE4\n");
+	//printf("HERE4\n");
 	// TEMPORARILY ADDED IN FOR DEBUGGING PURPOSES
 	for(i = 0; i < N; i++)
 		{
-			float yi = b[i];
+			double yi = b[i];
 			for(j = 0; j < i; j++)
 			{
 				yi -= A[i*N+j]*y[j];
@@ -395,14 +395,14 @@ int main(int argc, char** argv)
 		// Use back substitution to solve Ux = y
 		for(i = N-1; i >= 0; i--)
 		{
-			float xi = y[i];
+			double xi = y[i];
 			for(j = i+1; j < N; j++)
 				xi -= A[i*N+j]*x[j];
 			x[i] = xi/A[i*N+i];
 		}
 	// END TEMPORARILY ADDED IN
 	
-	printf("HERE5\n");
+	//printf("HERE5\n");
 	//show_matrix(b,0,N);
 	//show_matrix(b0,0,N);
 	//show_matrix(x,0,N);
