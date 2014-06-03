@@ -15,7 +15,8 @@ LUFact(
 	double denom = A[n*N+n];
 	double lval = A[row*N+n]/denom;
 	barrier(CLK_GLOBAL_MEM_FENCE);
-	A[row*N+n] = lval;
+	if (item == 0)
+		A[row*N+n] = lval;
 	lval = -lval;
 	int i = (n+1) < cStart ? cStart : (n+1);
 	for(; i < cEnd; i++)
