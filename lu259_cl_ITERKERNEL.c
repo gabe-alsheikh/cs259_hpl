@@ -86,6 +86,8 @@ int main(int argc, char** argv)
 	double *x = (double *) malloc(N*sizeof(double));
 	double *y = (double *) malloc(N*sizeof(double));
 	double *Acurr = (double *) malloc(N*sizeof(double));
+	double *denom = (double *) malloc(sizeof(double));
+	double *nextDenom = (double *) malloc(sizeof(double));
 	
 	int i, j;
 	// Initialize A and b
@@ -158,6 +160,8 @@ int main(int argc, char** argv)
 	unsigned int mem_size_x = sizeof(double) * size_x;
 	unsigned int mem_size_y = sizeof(double) * size_y;
 	unsigned int mem_size_Acurr = sizeof(double) * size_Acurr;
+	unsigned int mem_size_denom = sizeof(double);
+	unsigned int mem_size_nextDenom = sizeof(double);
 	
 	// Host pointers
 	double* h_A = A;
@@ -166,6 +170,8 @@ int main(int argc, char** argv)
 	double* h_x = x;
 	double* h_y = y;
 	double* h_Acurr = Acurr;
+	double* h_denom = denom;
+	double* h_nextDenom = nextDenom;
 	
 	
 	// 5. Initialize OpenCL
@@ -244,6 +250,8 @@ int main(int argc, char** argv)
 	cl_mem d_x;
 	cl_mem d_y;
 	cl_mem d_Acurr;
+	cl_mem d_denom;
+	cl_mem d_nextDenom;
 	
 	//Create a command-queue
 	clCommandQue = clCreateCommandQueue(context, devices[0], 0, &status);
@@ -258,6 +266,8 @@ int main(int argc, char** argv)
 	d_b = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, mem_size_b, h_b, &status);
 	d_y = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, mem_size_y, h_y, &status);
 	d_Acurr = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, mem_size_Acurr, h_Acurr, &status);
+	d_denom = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, mem_size_denom, h_denom, &status);
+	d_nextDenom = clCreateBuffer(context, CL_MEM_READ_WRITE, mem_size_nextDenom, NULL, &status);
 
 #ifndef FPGA_DEVICE
 	// WE CAN'T USE THIS UNLESS WE MAKE A HEADER FILE WITH A GIANT STRING OF THE KERNEL PROGRAM
@@ -316,19 +326,54 @@ int main(int argc, char** argv)
 	
 	
 	status = clSetKernelArg(clKernel, 0, sizeof(cl_mem), (void *)&d_A);
-	status |= clSetKernelArg(clKernel, 2, sizeof(int), (void *)&N);
+	status |= clSetKernelArg(clKernel, 1, sizeof(cl_mem), (void *)&d_denom);
+	status |= clSetKernelArg(clKernel, 2, sizeof(cl_mem), (void *)&d_nextDenom);
+	status |= clSetKernelArg(clKernel, 4, sizeof(int), (void *)&N);
+
 	// start timer
 	clock_t start = clock();
 	status = clEnqueueWriteBuffer(clCommandQue, d_A, CL_FALSE, 0, mem_size_A, h_A, 0, NULL, NULL);
 	
-	int n;
+	// Ready for pivoting
+	*denom = A[0];
+	
+	int n, z;
 	for (n = 0; n < N-1; n++)
 	{
+		if(*denom == 0.0)
+		{
+			// PARTIAL PIVOTING FOR ROWS OF [A b]		
+			int max_j = n;
+			// Search for the maximum value in the column, starting from the current row
+			for (j = n; j < N; j++)
+			{
+				if (fabs(A[j*N+n]) > fabs(A[max_j*N+n])) 
+				{
+					max_j = j;
+				}
+			}
+						
+			// Swap rows for partial pivoting
+			if (max_j != n)
+			{
+				for (z = 0; z < N; z++) 
+				{ 
+					double temp = A[n*N+z];
+					A[n*N+z] = A[max_j*N+z];
+					A[max_j*N+z] = temp;	
+				}
+				double temp_b = b[n];
+				b[n] = b[max_j];
+				b[max_j] = temp_b;
+			}		
+			*denom = A[n*N+n]; // Update denom with new value
+		}
+		
 		size_t localWorkSize[1], globalWorkSize[1];
 		
 		//status  = clSetKernelArg(clKernel, 0, sizeof(cl_mem), (void *)&d_x);
 		//status |= clSetKernelArg(clKernel, 0, sizeof(cl_mem), (void *)&d_A);
-		status |= clSetKernelArg(clKernel, 1, sizeof(int), (void *)&n);
+		status |= clSetKernelArg(clKernel, 3, sizeof(int), (void *)&n);
 		//status |= clSetKernelArg(clKernel, 2, sizeof(int), (void *)&N);
 		//status |= clSetKernelArg(clKernel, 1, sizeof(cl_mem), (void *)&d_L);
 		//status |= clSetKernelArg(clKernel, 3, sizeof(cl_mem), (void *)&d_b);
@@ -348,6 +393,7 @@ int main(int argc, char** argv)
 		localWorkSize[0] = N/BLOCK_SIZE; //1;
 		globalWorkSize[0] = (N-n-1)*N/BLOCK_SIZE; //N-n-1;
 
+		status = clEnqueueWriteBuffer(clCommandQue, d_denom, CL_FALSE, 0, mem_size_denom, h_denom, 0, NULL, NULL);
 		//status = clEnqueueWriteBuffer(clCommandQue, d_A, CL_FALSE, 0, mem_size_A, h_A, 0, NULL, NULL);
 		//status = clEnqueueWriteBuffer(clCommandQue, d_L, CL_FALSE, 0, mem_size_L, h_L, 0, NULL, NULL);
 		//status = clEnqueueWriteBuffer(clCommandQue, d_b, CL_FALSE, 0, mem_size_b, h_b, 0, NULL, NULL);
@@ -361,14 +407,16 @@ int main(int argc, char** argv)
 			printf("clEnqueueNDRangeKernel error(%d)\n", status);
 		//printf("Exit the dragon\n");
 		// 8. Retrieve result from device
+		status = clEnqueueReadBuffer(clCommandQue, d_nextDenom, CL_TRUE, 0, mem_size_nextDenom, h_nextDenom, 0, NULL, NULL);
 		//status = clEnqueueReadBuffer(clCommandQue, d_x, CL_TRUE, 0, mem_size_x, h_x, 0, NULL, NULL);
 		//status = clEnqueueReadBuffer(clCommandQue, d_A, CL_TRUE, 0, mem_size_A, h_A, 0, NULL, NULL);
 		//status = clEnqueueReadBuffer(clCommandQue, d_L, CL_TRUE, 0, mem_size_L, h_L, 0, NULL, NULL);
 		//printf("HERE2\n");
-		//if (status != CL_SUCCESS)
-		//	printf("clEnqueueReadBuffer error(%d)\n", status);
+		if (status != CL_SUCCESS)
+			printf("clEnqueueReadBuffer error(%d)\n", status);
 		//printf("HERE1\n");
 		
+		*denom = *nextDenom;
 		//printf("ITERATION %d COMPLETE\n", n);
 		
 	}
