@@ -3,6 +3,8 @@
 __kernel void
 LUFact(
 	__global double* A,
+	__global double* denom,
+	__global double* nextDenom,
 	int n,
 	int N)
 {
@@ -12,8 +14,8 @@ LUFact(
 	int cStart = item * BLOCK_SIZE;
 	int cEnd = cStart + BLOCK_SIZE;
 	// load rows n, row?
-	double denom = A[n*N+n];
-	double lval = A[row*N+n]/denom;
+	//double denom = A[n*N+n];
+	double lval = A[row*N+n]/(*denom);
 	barrier(CLK_GLOBAL_MEM_FENCE);
 	if (item == 0)
 		A[row*N+n] = lval;
@@ -21,6 +23,8 @@ LUFact(
 	int i = (n+1) < cStart ? cStart : (n+1);
 	for(; i < cEnd; i++)
 		A[row*N+i] += lval*A[n*N+i]; 
+	if(row == (n+1) && item == 0)
+		*nextDenom = A[(n+1)*N+n+1];
 		// overlap comm and comp?
 	// store local row?
 }
