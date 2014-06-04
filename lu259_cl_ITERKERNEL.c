@@ -11,6 +11,7 @@
 #endif
 
 #define BLOCK_SIZE 64
+#define BLOCK_SIZE_SUB 64
 #define ITER 1 
 // Note: Iterations not implemented yet
 
@@ -88,6 +89,8 @@ int main(int argc, char** argv)
 	double *Acurr = (double *) malloc(N*sizeof(double));
 	double *denom = (double *) malloc(sizeof(double));
 	double *nextDenom = (double *) malloc(sizeof(double));
+	double *yPart = (double *) malloc((N/BLOCK_SIZE_SUB)*sizeof(double));
+	double *xPart = (double *) malloc((N/BLOCK_SIZE_SUB)*sizeof(double));
 	
 	int i, j;
 	// Initialize A and b
@@ -121,6 +124,12 @@ int main(int argc, char** argv)
 		Acurr[i] = 0;
 	}
 	
+	for (i = 0; i < N/BLOCK_SIZE; i++)
+	{
+		yPart[i] = 0;
+		xPart[i] = 0;
+	}
+	
 	// TEST A AND b MANUAL GENERATION
 	/*
 		for(i = 0; i < N; i++)
@@ -134,7 +143,7 @@ int main(int argc, char** argv)
 			}
 			b[i] = b0[i] = (double) i/(10.0);
 		}
-		*/
+	*/	
 		// END GENERATION
 	
 	//show_matrix(A,0,N);
@@ -162,6 +171,8 @@ int main(int argc, char** argv)
 	unsigned int mem_size_Acurr = sizeof(double) * size_Acurr;
 	unsigned int mem_size_denom = sizeof(double);
 	unsigned int mem_size_nextDenom = sizeof(double);
+	unsigned int mem_size_yPart = sizeof(double) * (N/BLOCK_SIZE_SUB);
+	unsigned int mem_size_xPart = sizeof(double) * (N/BLOCK_SIZE_SUB);
 	
 	// Host pointers
 	double* h_A = A;
@@ -172,6 +183,8 @@ int main(int argc, char** argv)
 	double* h_Acurr = Acurr;
 	double* h_denom = denom;
 	double* h_nextDenom = nextDenom;
+	double* h_yPart = yPart;
+	double* h_xPart = xPart;
 	
 	
 	// 5. Initialize OpenCL
@@ -179,6 +192,7 @@ int main(int argc, char** argv)
 	cl_command_queue clCommandQue;
 	cl_program program;
 	cl_kernel clKernel;
+	cl_kernel clKernelFSub; // Kernel for forward substitution
 
 	size_t dataBytes;
 	size_t kernelLength;
@@ -252,6 +266,8 @@ int main(int argc, char** argv)
 	cl_mem d_Acurr;
 	cl_mem d_denom;
 	cl_mem d_nextDenom;
+	cl_mem d_yPart;
+	cl_mem d_xPart;
 	
 	//Create a command-queue
 	clCommandQue = clCreateCommandQueue(context, devices[0], 0, &status);
@@ -260,7 +276,7 @@ int main(int argc, char** argv)
 		printf("clCreateCommandQueue error(%d)\n", status);
 
 	// Setup device memory
-	d_x = clCreateBuffer(context, CL_MEM_READ_WRITE, mem_size_x, NULL, &status);
+	d_x = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, mem_size_x, h_x, &status);
 	d_A = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, mem_size_A, h_A, &status);
 	d_L = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, mem_size_L, h_L, &status);
 	d_b = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, mem_size_b, h_b, &status);
@@ -268,6 +284,8 @@ int main(int argc, char** argv)
 	d_Acurr = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, mem_size_Acurr, h_Acurr, &status);
 	d_denom = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, mem_size_denom, h_denom, &status);
 	d_nextDenom = clCreateBuffer(context, CL_MEM_READ_WRITE, mem_size_nextDenom, NULL, &status);
+	d_yPart = clCreateBuffer(context, CL_MEM_READ_WRITE, mem_size_yPart, NULL, &status);
+	d_xPart = clCreateBuffer(context, CL_MEM_READ_WRITE, mem_size_xPart, NULL, &status);
 
 #ifndef FPGA_DEVICE
 	// WE CAN'T USE THIS UNLESS WE MAKE A HEADER FILE WITH A GIANT STRING OF THE KERNEL PROGRAM
@@ -334,15 +352,21 @@ int main(int argc, char** argv)
 	clock_t start = clock();
 	status = clEnqueueWriteBuffer(clCommandQue, d_A, CL_FALSE, 0, mem_size_A, h_A, 0, NULL, NULL);
 	
+			
+	size_t localWorkSize[1], globalWorkSize[1];
 	// Ready for pivoting
 	*denom = A[0];
 	
 	int n, z;
 	for (n = 0; n < N-1; n++)
 	{
+		//printf("denom: %f\n", *denom);
 		if(*denom == 0.0)
 		{
 			// PARTIAL PIVOTING FOR ROWS OF [A b]		
+			status = clEnqueueReadBuffer(clCommandQue, d_A, CL_TRUE, 0, mem_size_A, h_A, 0, NULL, NULL);
+			if (status != CL_SUCCESS)
+				printf("clEnqueueReadBuffer error(%d)\n", status);
 			int max_j = n;
 			// Search for the maximum value in the column, starting from the current row
 			for (j = n; j < N; j++)
@@ -367,9 +391,10 @@ int main(int argc, char** argv)
 				b[max_j] = temp_b;
 			}		
 			*denom = A[n*N+n]; // Update denom with new value
+			//printf("denom in pivot update: %f\n", *denom);
+			status = clEnqueueWriteBuffer(clCommandQue, d_A, CL_FALSE, 0, mem_size_A, h_A, 0, NULL, NULL);
 		}
-		
-		size_t localWorkSize[1], globalWorkSize[1];
+		//show_matrix(A,0,N);
 		
 		//status  = clSetKernelArg(clKernel, 0, sizeof(cl_mem), (void *)&d_x);
 		//status |= clSetKernelArg(clKernel, 0, sizeof(cl_mem), (void *)&d_A);
@@ -415,7 +440,7 @@ int main(int argc, char** argv)
 		if (status != CL_SUCCESS)
 			printf("clEnqueueReadBuffer error(%d)\n", status);
 		//printf("HERE1\n");
-		
+		//printf("nextDenom: %f\n", *nextDenom);
 		*denom = *nextDenom;
 		//printf("ITERATION %d COMPLETE\n", n);
 		
@@ -429,25 +454,109 @@ int main(int argc, char** argv)
 	//show_matrix(L,0,N);
 	
 	//printf("HERE4\n");
-	// TEMPORARILY ADDED IN FOR DEBUGGING PURPOSES
-	for(i = 0; i < N; i++)
-		{
-			double yi = b[i];
-			for(j = 0; j < i; j++)
-			{
-				yi -= A[i*N+j]*y[j];
-			}	
-			y[i] = yi;
-		}
+	
+	// FORWARD SUBSTITUTION
+	clKernel = clCreateKernel(program, "fSub", &status);
+	if (status != CL_SUCCESS)
+		printf("clCreateKernel error(%d)\n", status);
+		
+	
+	status = clSetKernelArg(clKernel, 0, sizeof(cl_mem), (void *)&d_A);
+	status |= clSetKernelArg(clKernel, 1, sizeof(cl_mem), (void *)&d_y);
+	status |= clSetKernelArg(clKernel, 2, sizeof(cl_mem), (void *)&d_yPart);
+	status |= clSetKernelArg(clKernel, 4, sizeof(int), (void *)&N);
+	status = clEnqueueWriteBuffer(clCommandQue, d_A, CL_FALSE, 0, mem_size_A, h_A, 0, NULL, NULL);
+	for (n = 0; n < N; n++)
+	{
+		localWorkSize[0] = N/BLOCK_SIZE_SUB;
+		globalWorkSize[0] = N/BLOCK_SIZE_SUB;
+		
+		status |= clSetKernelArg(clKernel, 3, sizeof(int), (void *)&n);
+		if (status != CL_SUCCESS)
+			printf("clSetKernelArg error(%d)\n", status);
+			
+		status = clEnqueueWriteBuffer(clCommandQue, d_y, CL_FALSE, 0, mem_size_y, h_y, 0, NULL, NULL);
 
-		// Use back substitution to solve Ux = y
-		for(i = N-1; i >= 0; i--)
+		status = clEnqueueNDRangeKernel(clCommandQue, 
+				clKernel, 1, NULL, globalWorkSize, 
+				localWorkSize, 0, NULL, NULL);
+		if (status != CL_SUCCESS)
+			printf("clEnqueueNDRangeKernel error(%d)\n", status);
+			
+
+		status = clEnqueueReadBuffer(clCommandQue, d_yPart, CL_TRUE, 0, mem_size_yPart, h_yPart, 0, NULL, NULL);
+		if (status != CL_SUCCESS)
+			printf("clEnqueueReadBuffer error(%d)\n", status);
+	
+		double sum = 0;
+		for (i = 0; i < N/BLOCK_SIZE_SUB; i++)
 		{
-			double xi = y[i];
-			for(j = i+1; j < N; j++)
-				xi -= A[i*N+j]*x[j];
-			x[i] = xi/A[i*N+i];
+			sum += yPart[i];
 		}
+		y[n] = b[n] - sum;
+	}
+	
+	// BACKWARD SUBSTITUTION
+	clKernel = clCreateKernel(program, "bSub", &status);
+	if (status != CL_SUCCESS)
+		printf("clCreateKernel error(%d)\n", status);
+		
+	status = clSetKernelArg(clKernel, 0, sizeof(cl_mem), (void *)&d_A);
+	status |= clSetKernelArg(clKernel, 1, sizeof(cl_mem), (void *)&d_x);
+	status |= clSetKernelArg(clKernel, 2, sizeof(cl_mem), (void *)&d_xPart);
+	status |= clSetKernelArg(clKernel, 4, sizeof(int), (void *)&N);
+	status = clEnqueueWriteBuffer(clCommandQue, d_A, CL_FALSE, 0, mem_size_A, h_A, 0, NULL, NULL);
+	for (n = N-1; n >= 0; n--)
+	{
+		localWorkSize[0] = N/BLOCK_SIZE_SUB;
+		globalWorkSize[0] = N/BLOCK_SIZE_SUB;
+		
+		status |= clSetKernelArg(clKernel, 3, sizeof(int), (void *)&n);
+		if (status != CL_SUCCESS)
+			printf("clSetKernelArg error(%d)\n", status);
+			
+		status = clEnqueueWriteBuffer(clCommandQue, d_x, CL_FALSE, 0, mem_size_x, h_x, 0, NULL, NULL);
+
+		status = clEnqueueNDRangeKernel(clCommandQue, 
+				clKernel, 1, NULL, globalWorkSize, 
+				localWorkSize, 0, NULL, NULL);
+		if (status != CL_SUCCESS)
+			printf("clEnqueueNDRangeKernel error(%d)\n", status);
+			
+
+		status = clEnqueueReadBuffer(clCommandQue, d_xPart, CL_TRUE, 0, mem_size_xPart, h_xPart, 0, NULL, NULL);
+		if (status != CL_SUCCESS)
+			printf("clEnqueueReadBuffer error(%d)\n", status);
+			
+		double sum = 0;
+		for (i = 0; i < N/BLOCK_SIZE_SUB; i++)
+		{
+			sum += xPart[i];
+		}
+		x[n] = (y[n] - sum)/A[n*N+n];
+	}
+	
+	// TEMPORARILY ADDED IN FOR DEBUGGING PURPOSES
+	/*for(i = 0; i < N; i++)
+	{
+		double yi = b[i];
+		for(j = 0; j < i; j++)
+		{
+			yi -= A[i*N+j]*y[j];
+		}	
+		y[i] = yi;
+		
+	}
+		
+	// Use back substitution to solve Ux = y
+	for(i = N-1; i >= 0; i--)
+	{
+		double xi = y[i];
+		for(j = i+1; j < N; j++)
+			xi -= A[i*N+j]*x[j];
+		x[i] = xi/A[i*N+i];
+	}
+	*/
 	// END TEMPORARILY ADDED IN
 	
 	//printf("HERE5\n");
@@ -491,6 +600,8 @@ int main(int argc, char** argv)
 	free(h_x);
 	free(h_y);
 	free(h_Acurr);
+	free(h_xPart);
+	free(h_yPart);
 
 	clReleaseMemObject(d_A);
 	clReleaseMemObject(d_L);
@@ -498,6 +609,8 @@ int main(int argc, char** argv)
 	clReleaseMemObject(d_x);
 	clReleaseMemObject(d_y);
 	clReleaseMemObject(d_Acurr);
+	clReleaseMemObject(d_xPart);
+	clReleaseMemObject(d_yPart);
 
 	free(devices);
 	clReleaseContext(context);
