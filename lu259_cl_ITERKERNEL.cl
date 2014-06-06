@@ -1,5 +1,5 @@
-#define BLOCK_SIZE 32
-#define BLOCK_SIZE_SUB 32
+#define BLOCK_SIZE 128
+#define BLOCK_SIZE_SUB 128
 
 __kernel void
 LUFact(
@@ -24,8 +24,11 @@ LUFact(
 	lval = -lval;
 	int i = (n+1) < cStart ? cStart : (n+1);
 	if(i > cStart && i < cEnd)
+	{
 		for(; i%4 != 0; i++)
 			A[rStart+i] += lval*A[nStart+i];
+	}
+	__attribute__((xcl_pipeline_loop))
 	for(; i < cEnd; i+=4)
 	{
 		A[rStart+i] += lval*A[nStart+i];
