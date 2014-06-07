@@ -87,7 +87,6 @@ int main(int argc, char** argv)
 	float *L = (float *) malloc(N*N*sizeof(float));
 	float *x = (float *) malloc(N*sizeof(float));
 	float *y = (float *) malloc(N*sizeof(float));
-	float *Acurr = (float *) malloc(N*sizeof(float));
 	float *denom = (float *) malloc(sizeof(float));
 	float *nextDenom = (float *) malloc(sizeof(float));
 	float *yPart = (float *) malloc((N/BLOCK_SIZE_SUB)*sizeof(float));
@@ -124,7 +123,6 @@ int main(int argc, char** argv)
 		}
 		y[i] = 0;
 		x[i] = 0;
-		Acurr[i] = 0;
 	}
 	
 	for (i = 0; i < N/BLOCK_SIZE; i++)
@@ -153,8 +151,8 @@ int main(int argc, char** argv)
 	
 	
 	// 1. allocate host memory for matrices A and B
-	int width_A, width_A0, width_L, height_A, height_A0, height_L, height_b, height_b0, height_x, height_y, width_Acurr;
-	width_A = width_A0 = width_L = height_A = height_A0 = height_L = height_b = height_b0 = height_x = height_y = width_Acurr = N;
+	int width_A, width_A0, width_L, height_A, height_A0, height_L, height_b, height_b0, height_x, height_y;
+	width_A = width_A0 = width_L = height_A = height_A0 = height_L = height_b = height_b0 = height_x = height_y = N;
 	
 	unsigned int size_A = width_A * height_A;
 	unsigned int size_A0 = width_A0 * height_A0;
@@ -163,7 +161,6 @@ int main(int argc, char** argv)
 	unsigned int size_b0 = height_b0;
 	unsigned int size_x = height_x;
 	unsigned int size_y = height_y;
-	unsigned int size_Acurr = width_Acurr;
 	unsigned int mem_size_A = sizeof(float) * size_A;
 	unsigned int mem_size_A0 = sizeof(float) * size_A0;
 	unsigned int mem_size_L = sizeof(float) * size_L;
@@ -171,7 +168,6 @@ int main(int argc, char** argv)
 	unsigned int mem_size_b0 = sizeof(float) * size_b0;
 	unsigned int mem_size_x = sizeof(float) * size_x;
 	unsigned int mem_size_y = sizeof(float) * size_y;
-	unsigned int mem_size_Acurr = sizeof(float) * size_Acurr;
 	unsigned int mem_size_denom = sizeof(float);
 	unsigned int mem_size_nextDenom = sizeof(float);
 	unsigned int mem_size_yPart = sizeof(float) * (N/BLOCK_SIZE_SUB);
@@ -183,7 +179,6 @@ int main(int argc, char** argv)
 	float* h_b = b;
 	float* h_x = x;
 	float* h_y = y;
-	float* h_Acurr = Acurr;
 	float* h_denom = denom;
 	float* h_nextDenom = nextDenom;
 	float* h_yPart = yPart;
@@ -195,7 +190,6 @@ int main(int argc, char** argv)
 	cl_command_queue clCommandQue;
 	cl_program program;
 	cl_kernel clKernel;
-	cl_kernel clKernelFSub; // Kernel for forward substitution
 	cl_kernel clKernelBSub; // Kernel for backward substitution
 
 	size_t dataBytes;
@@ -267,7 +261,6 @@ int main(int argc, char** argv)
 	cl_mem d_b;
 	cl_mem d_x;
 	cl_mem d_y;
-	cl_mem d_Acurr;
 	cl_mem d_denom;
 	cl_mem d_nextDenom;
 	cl_mem d_yPart;
@@ -285,7 +278,6 @@ int main(int argc, char** argv)
 	d_L = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, mem_size_L, h_L, &status);
 	d_b = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, mem_size_b, h_b, &status);
 	d_y = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, mem_size_y, h_y, &status);
-	d_Acurr = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, mem_size_Acurr, h_Acurr, &status);
 	d_denom = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, mem_size_denom, h_denom, &status);
 	d_nextDenom = clCreateBuffer(context, CL_MEM_READ_WRITE, mem_size_nextDenom, NULL, &status);
 	d_yPart = clCreateBuffer(context, CL_MEM_READ_WRITE, mem_size_yPart, NULL, &status);
@@ -350,30 +342,6 @@ int main(int argc, char** argv)
 			printf("clSetKernelArg error(%d)\n", status);
 
 			
-	clKernelFSub = clCreateKernel(program, "fSub", &status);
-	if (status != CL_SUCCESS)
-		printf("clCreateKernel error(%d)\n", status);
-
-	status = clSetKernelArg(clKernelFSub, 0, sizeof(cl_mem), (void *)&d_A);
-	status |= clSetKernelArg(clKernelFSub, 1, sizeof(cl_mem), (void *)&d_y);
-	status |= clSetKernelArg(clKernelFSub, 2, sizeof(cl_mem), (void *)&d_yPart);
-	status |= clSetKernelArg(clKernelFSub, 4, sizeof(int), (void *)&N);
-	if (status != CL_SUCCESS)
-		printf("clSetKernelArg error(%d)\n", status);
-		
-		
-	clKernelBSub = clCreateKernel(program, "bSub", &status);
-	if (status != CL_SUCCESS)
-		printf("clCreateKernel error(%d)\n", status);
-				
-	status = clSetKernelArg(clKernelBSub, 0, sizeof(cl_mem), (void *)&d_A);
-	status |= clSetKernelArg(clKernelBSub, 1, sizeof(cl_mem), (void *)&d_x);
-	status |= clSetKernelArg(clKernelBSub, 2, sizeof(cl_mem), (void *)&d_xPart);
-	status |= clSetKernelArg(clKernelBSub, 4, sizeof(int), (void *)&N);	
-	if (status != CL_SUCCESS)
-		printf("clSetKernelArg error(%d)\n", status);
-		
-	
 	// 7. Launch OpenCL kernel
 	
 	// start timer
@@ -432,7 +400,6 @@ int main(int argc, char** argv)
 		//status |= clSetKernelArg(clKernel, 1, sizeof(cl_mem), (void *)&d_L);
 		//status |= clSetKernelArg(clKernel, 3, sizeof(cl_mem), (void *)&d_b);
 		//status |= clSetKernelArg(clKernel, 4, sizeof(cl_mem), (void *)&d_y);
-		//status |= clSetKernelArg(clKernel, 5, sizeof(cl_mem), (void *)&d_Acurr);
 		//status |= clSetKernelArg(clKernel, 6, sizeof(int), (void *)&N);
 		//status |= clSetKernelArg(clKernel, 6, sizeof(int), (void *)&height_vector);
 	
@@ -444,15 +411,16 @@ int main(int argc, char** argv)
 		//localWorkSize[1] = BLOCK_SIZE;
 		//globalWorkSize[0] = width_A;
 		//globalWorkSize[1] = height_A;
-		localWorkSize[0] = N/BLOCK_SIZE; //1;
-		globalWorkSize[0] = (N-n-1)*N/BLOCK_SIZE; //N-n-1;
+		localWorkSize[0] =  (N-n-1)/BLOCK_SIZE + 1;//N/BLOCK_SIZE;
+		//localWorkSize[1] = 1;
+		globalWorkSize[0] = (N-n-1)*((N-n-1)/BLOCK_SIZE + 1);
+		//globalWorkSize[1] = N/BLOCK_SIZE;
 
 		status = clEnqueueWriteBuffer(clCommandQue, d_denom, CL_FALSE, 0, mem_size_denom, h_denom, 0, NULL, NULL);
 		//status = clEnqueueWriteBuffer(clCommandQue, d_A, CL_FALSE, 0, mem_size_A, h_A, 0, NULL, NULL);
 		//status = clEnqueueWriteBuffer(clCommandQue, d_L, CL_FALSE, 0, mem_size_L, h_L, 0, NULL, NULL);
 		//status = clEnqueueWriteBuffer(clCommandQue, d_b, CL_FALSE, 0, mem_size_b, h_b, 0, NULL, NULL);
 		//status = clEnqueueWriteBuffer(clCommandQue, d_y, CL_FALSE, 0, mem_size_y, h_y, 0, NULL, NULL);
-		//status = clEnqueueWriteBuffer(clCommandQue, d_Acurr, CL_FALSE, 0, mem_size_Acurr, h_Acurr, 0, NULL, NULL);
 		//printf("Enter the dragon\n");
 		status = clEnqueueNDRangeKernel(clCommandQue, 
 				clKernel, 1, NULL, globalWorkSize, 
@@ -483,6 +451,7 @@ int main(int argc, char** argv)
 	
 	//printf("HERE4\n");
 	
+	/*
 	// FORWARD SUBSTITUTION
 	status = clEnqueueWriteBuffer(clCommandQue, d_A, CL_FALSE, 0, mem_size_A, h_A, 0, NULL, NULL);
 	for (n = 0; n < N; n++)
@@ -546,9 +515,10 @@ int main(int argc, char** argv)
 		}
 		x[n] = (y[n] - sum)/A[n*N+n];
 	}
+	*/
 	
-	// TEMPORARILY ADDED IN FOR DEBUGGING PURPOSES
-	/*for(i = 0; i < N; i++)
+	// TEMPORARILY ADDED IN FOR DEBUGGING PURPOSES BUT NOW FOR REAL
+	for(i = 0; i < N; i++)
 	{
 		float yi = b[i];
 		for(j = 0; j < i; j++)
@@ -567,7 +537,6 @@ int main(int argc, char** argv)
 			xi -= A[i*N+j]*x[j];
 		x[i] = xi/A[i*N+i];
 	}
-	*/
 	// END TEMPORARILY ADDED IN
 	
 	//printf("HERE5\n");
@@ -614,7 +583,6 @@ int main(int argc, char** argv)
 	free(h_b);
 	free(h_x);
 	free(h_y);
-	free(h_Acurr);
 	free(h_xPart);
 	free(h_yPart);
 
@@ -623,15 +591,12 @@ int main(int argc, char** argv)
 	clReleaseMemObject(d_b);
 	clReleaseMemObject(d_x);
 	clReleaseMemObject(d_y);
-	clReleaseMemObject(d_Acurr);
 	clReleaseMemObject(d_xPart);
 	clReleaseMemObject(d_yPart);
 
 	free(devices);
 	clReleaseContext(context);
 	clReleaseKernel(clKernel);
-	clReleaseKernel(clKernelFSub);
-	clReleaseKernel(clKernelBSub);
 	clReleaseProgram(program);
 	clReleaseCommandQueue(clCommandQue);
 }
