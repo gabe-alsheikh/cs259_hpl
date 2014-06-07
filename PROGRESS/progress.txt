@@ -1,0 +1,139 @@
+First change: Moved writeBuffer and readBuffer out of the iterative loop for 
+the LU decomposition kernel call.
+
+lu259_cl_ITERKERNEL_v1.X
+This iteration involved a kernel with N-n-1 work groups and an iterative scheme to
+perform the LU decomposition. Each work group is a single item. Substitution is
+done in the host file.
+SUCCESSFULLY TESTED ON FPGA USING FLOATS
+
+lu259_cl_ITERKERNEL_v2.X
+Converted the previous kernel into a blocked scheme, with each work group having
+N/BLOCK_SIZE items (global size is (N-n-1)*N/BLOCK_SIZE)
+No speedup over v1, but it could potentially provide it with HLS optimizations.
+
+lu259_cl_ITERKERNEL_v3.X
+Changed the kernel to process denom and nextDenom each time and added in pivoting in
+the host.
+
+lu259_cl_ITERKERNEL_v4.X
+Added in kernels for forward substitution and backward substitution
+
+lu259_cl_ITERKERNEL_v5.c
+Added in a "fix" for the less of precision with floats during the check.
+
+lu259_clITERKERNEL_v5.cl and .h
+Added in Optimization #1 so that there is no multiplication in the address offset calculations in the arrays.
+
+lu259_cl_ITERKERNEL_v6.c
+Put clCreateKernel stuff before the time starts and made Block size to 128
+
+lu259_cl_ITERKERNEL_v6.cl and .h
+Changed block size to 128
+
+lu259_cl_ITERKERNEL_v7.c 
+Removed unnecessary variables being allocated with memory
+
+lu259_cl_ITERKERNEL_v7.cl
+Added a pipeline attribute before the second loop in LUFact
+
+lu259_cl_ITERKERNEL_v8.c
+Removed substitution kernels
+
+lu259_cl_ITERKERNEL_v9.c
+Changed group sizes to new scheme:
+Basically i'm trying to have the first w-i include column n (though technically we just need n+1), since we can ignore the stuff to the left of it
+the last slice should line up with the end
+change the host code to 1D w-g's and 1D w-i's, usual number of groups, and the given number of w-i's (this changes every BLOCK_SIZE iterations)
+before:
+_________
+|_________|
+|         |
+|_________|
+after:
+_________
+|      ______|
+|     |      |
+|________|
+*|__|______|
+the implication is that we don't have work items that do nothing
+(actually, there's an OB1 where one w-i each group is doing nothing occasionally, but it's not a big deal)
+
+
+lu259_cl_ITERKERNEL_v9.cl and h
+Changed cStart to reflect new change
+
+OPTIMIZATIONS:
+OPTIMIZATIONS DURING DEVELOPMENT:
+-Our in-place A matrix is a minor optimization, but since that was our "starting point" we don't have numbers for it.
+-Our work groups are functions of N and the BLOCK_SIZE, rather than having work-groups of size 1.
+-We observed we did not have to have a read/write for A on every iteration of the loop. Only needing to read it when it's 
+needed back in host memory.
+-Moved writeBuffer and readBuffer out of the iterative loop for the LU decomposition kernel call.
+
+
+
+1)
+I declared two variables, rStart and nStart, that make it so that there is no multiplication in the
+address offset calculations. Done in the LUFact kernel.
+
+2)
+Changing block size to 128. Very minimal speedups.
+
+3) 
+Pipelining the second loop in LUFact kernel
+
+4)
+-N 4 duplication for LUFact kernel
+
+5)
+REMOVED SUBSTITUTION KERNELS (corresponds to v8)
+Why? The biggest thing is that it does 2048 kernel launches for O(N) operations for each substitution
+For LUFact, it does 1024 launches for O(N^2) operations
+This is part of the reason why i/we tried a single kernel first
+
+
+RUN TIMES ON FPGA:
+1) No optimizations, base version with A modified in-place, both BLOCK_SIZE are 64
+N		Time(s)
+64		0.16
+128		0.85
+256		5.19
+512		35.02
+1024	254.29
+
+2) Optimization #1
+N		Time(s)
+64		0.16
+128		0.83
+256		5.07
+512		34.16
+1024	247.58
+
+
+3) Optimization #2
+N		Time(s)
+64		N/A; can't do since block size is 128
+128		0.83
+256		5.04
+512		33.89
+1024	245.25
+Why not a huge speedup?
+Guess: Since there's no local memory, block size will not affect it much
+
+
+4) Optimization #3
+N		Time(s)
+64		N/A
+128		0.83
+256		5.01
+512		33.64
+1024	243.39
+
+5) Optimization #4
+N		Time(s)
+64		N/A
+128		0.42
+256		1.87
+512		12.27
+1024	94.53
