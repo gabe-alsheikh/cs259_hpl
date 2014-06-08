@@ -428,7 +428,7 @@ int main(int argc, char** argv)
 		//globalWorkSize[1] = height_A;
 		localWorkSize[0] = BLOCK_SIZE;//(N-n-2)/BLOCK_SIZE + 1;
 		//localWorkSize[1] = 1;
-		globalWorkSize[0] = (((N-n-2)/BLOCK_SIZE+1)*BLOCK_SIZE);//(N-n-1)*((N-n-2)/BLOCK_SIZE + 1);
+		globalWorkSize[0] = (((N-n-2)/BLOCK_SIZE+1)*BLOCK_SIZE)*((N-n-2)/BLOCK_SIZE + 1);//(N-n-1)*((N-n-2)/BLOCK_SIZE + 1);
 		//globalWorkSize[1] = (N-n-2)/BLOCK_SIZE + 1;
 
 		status = clEnqueueWriteBuffer(clCommandQue, d_lval, CL_FALSE, 0, mem_size_lval, h_lval, 0, NULL, NULL);
