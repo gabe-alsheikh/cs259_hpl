@@ -38,7 +38,7 @@ const char* lu259_cl =
 "}\n"
 "if(cStart <= n+1 && cEnd > n+1)\n"
 "{\n"
-"nextLval[row] = A[rStart+n]; // use this and nextDenom to generate next lvals\n"
+"nextLval[row] = A[rStart+n+1]; // use this and nextDenom to generate next lvals\n"
 "if(row == n+1)\n"
 "*nextDenom = A[rStart+n+1];\n"
 "}\n"
