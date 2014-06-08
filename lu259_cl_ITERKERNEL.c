@@ -455,7 +455,7 @@ int main(int argc, char** argv)
 		//printf("HERE1\n");
 		//printf("nextDenom: %f\n", *nextDenom);
 		//*denom = *nextDenom;
-		printf("ITERATION %d COMPLETE\n", n);
+		//printf("ITERATION %d COMPLETE\n", n);
 		
 	}
 	status = clEnqueueReadBuffer(clCommandQue, d_A, CL_TRUE, 0, mem_size_A, h_A, 0, NULL, NULL);
