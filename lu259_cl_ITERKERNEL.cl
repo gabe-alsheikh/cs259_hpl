@@ -11,11 +11,12 @@ LUFact(
 {
 	// ceil((N-n-1)/BLOCK_SIZE)-by-ceil((N-n-1)/BLOCK_SIZE) work-groups
 	// BLOCK_SIZE work-items per group
-	int brStart = BLOCK_SIZE * ((n+1)/BLOCK_SIZE + get_group_id(0));
-	int rEnd = brStart + BLOCK_SIZE;
+	int groupsPerRow = (N-n-2)/BLOCK_SIZE + 1;
+	int g = get_group_id(0);
+	int brStart = BLOCK_SIZE * ((n+1)/BLOCK_SIZE + (g/groupsPerRow));
 	int t = get_local_id(0);
 	int row = brStart + t;
-	int cStart = BLOCK_SIZE * ((n+1)/BLOCK_SIZE + get_group_id(1));
+	int cStart = BLOCK_SIZE * ((n+1)/BLOCK_SIZE + (g % groupsPerRow));
 	int cEnd = cStart + BLOCK_SIZE;
 	int rStart = row*N;
 	int nStart = n*N;
