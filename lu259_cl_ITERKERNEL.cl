@@ -1,5 +1,5 @@
-#define BLOCK_SIZE 4
-#define BLOCK_SIZE_SUB 4
+#define BLOCK_SIZE 16
+#define BLOCK_SIZE_SUB 16
 __kernel void
 LUFact(
 	__global double* A,
