@@ -1,6 +1,6 @@
 const char* lu259_cl =
-"#define BLOCK_SIZE 4\n"
-"#define BLOCK_SIZE_SUB 4\n"
+"#define BLOCK_SIZE 16\n"
+"#define BLOCK_SIZE_SUB 16\n"
 "__kernel void\n"
 "LUFact(\n"
 "__global float* A,\n"
