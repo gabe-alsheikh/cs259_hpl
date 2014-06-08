@@ -38,6 +38,7 @@ LUFact(
 			for(; i%4 != 0; i++)
 				A[rStart+cStart+i] += lneg*Acurr[i];*/
 		// pipeline here
+		__attribute__((xcl_pipeline_loop))
 		for(; i < cEnd; i+=4)
 		{
 			A[rStart+i] += lneg*A[nStart+i];
@@ -52,11 +53,12 @@ LUFact(
 			A[rStart+cStart+i+2] += lneg*Acurr[i+2];
 			A[rStart+cStart+i+3] += lneg*Acurr[i+3];
 		}*/
-	}
-	if(cStart <= n+1 && cEnd > n+1)
-	{
-		nextLval[row] = A[rStart+n+1]; // use this and nextDenom to generate next lvals
-		if(row == n+1)
-			*nextDenom = A[rStart+n+1];
+		if(cStart <= n+1 && cEnd > n+1)
+		{
+			A[rStart+n] = l;
+			nextLval[row] = A[rStart+n+1]; // use this and nextDenom to generate next lvals
+			if(row == n+1)
+				*nextDenom = A[rStart+n+1];
+		}
 	}
 }
