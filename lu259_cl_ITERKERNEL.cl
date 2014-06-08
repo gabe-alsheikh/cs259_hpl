@@ -2,9 +2,10 @@
 #define BLOCK_SIZE_SUB 16
 __kernel void
 LUFact(
-	__global double* A,
-	__global double* lval, // an array of size N
-	__global double* nextDenom,
+	__global float* A,
+	__global float* lval, // an array of size N
+	__global float* nextLval,
+	__global float* nextDenom,
 	int n,
 	int N)
 {
@@ -18,15 +19,15 @@ LUFact(
 	int cEnd = cStart + BLOCK_SIZE;
 	int rStart = row*N;
 	int nStart = n*N;
-	/*__local double Lcurr[BLOCK_SIZE];
-	__local double Acurr[BLOCK_SIZE];
+	/*__local float Lcurr[BLOCK_SIZE];
+	__local float Acurr[BLOCK_SIZE];
 	async_work_group_copy(Lcurr, lval+brStart, BLOCK_SIZE, 0);
 	async_work_group_copy(Acurr, A+nStart+cStart, BLOCK_SIZE, 0);*/
-	double l = lval[row];//Lcurr[t];
+	float l = lval[row];//Lcurr[t];
 	barrier(CLK_GLOBAL_MEM_FENCE); // may not be needed
 	if(row >= n+1)
 	{
-		double lneg = -l;
+		float lneg = -l;
 		int i = (n+1) < cStart ? cStart : (n+1);
 		if(i > cStart && i < cEnd)
 			for(; i%4 != 0; i++)
@@ -53,7 +54,7 @@ LUFact(
 	}
 	if(cStart <= n+1 && cEnd > n+1)
 	{
-		lval[row] = A[rStart+n+1]; // use this and nextDenom to generate next lvals
+		nextLval[row] = A[rStart+n+1]; // use this and nextDenom to generate next lvals
 		if(row == n+1)
 			*nextDenom = A[rStart+n+1];
 	}
