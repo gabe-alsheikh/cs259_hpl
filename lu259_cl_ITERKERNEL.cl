@@ -55,7 +55,7 @@ LUFact(
 	}
 	if(cStart <= n+1 && cEnd > n+1)
 	{
-		nextLval[row] = A[rStart+n+1]; // use this and nextDenom to generate next lvals
+		nextLval[row] = A[rStart+n]; // use this and nextDenom to generate next lvals
 		if(row == n+1)
 			*nextDenom = A[rStart+n+1];
 	}
