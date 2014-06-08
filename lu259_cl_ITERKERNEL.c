@@ -10,8 +10,8 @@
 #include "lu259_cl.h"
 #endif
 
-#define BLOCK_SIZE 4
-#define BLOCK_SIZE_SUB 4
+#define BLOCK_SIZE 16
+#define BLOCK_SIZE_SUB 16
 #define ITER 1 
 // Note: Iterations not implemented yet
 
@@ -354,7 +354,8 @@ int main(int argc, char** argv)
 	size_t localWorkSize[2], globalWorkSize[2];
 	// Ready for pivoting
 	*nextDenom = A[0];
-	lval[0] = A[0]/(*nextDenom);
+	for (i = 0; i < N; i++)
+		lval[i] = A[i*N];
 	
 	int n, z;
 	for (n = 0; n < N-1; n++)
@@ -397,7 +398,7 @@ int main(int argc, char** argv)
 		
 		for(i = n+1; i < N; i++)
 		{	
-			lval[i] = A[i*N+n]/(*nextDenom);		
+			lval[i] /= (*nextDenom);		
 		}
 		
 		//status  = clSetKernelArg(clKernel, 0, sizeof(cl_mem), (void *)&d_x);
