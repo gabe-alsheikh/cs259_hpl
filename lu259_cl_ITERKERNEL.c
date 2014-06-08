@@ -358,7 +358,7 @@ int main(int argc, char** argv)
 	status = clEnqueueWriteBuffer(clCommandQue, d_A, CL_FALSE, 0, mem_size_A, h_A, 0, NULL, NULL);
 	
 			
-	size_t localWorkSize[2], globalWorkSize[2];
+	size_t localWorkSize[1], globalWorkSize[1];
 	// Ready for pivoting
 	*nextDenom = A[0];
 	for (i = 0; i < N; i++)
@@ -427,9 +427,9 @@ int main(int argc, char** argv)
 		//globalWorkSize[0] = width_A;
 		//globalWorkSize[1] = height_A;
 		localWorkSize[0] = BLOCK_SIZE;//(N-n-2)/BLOCK_SIZE + 1;
-		localWorkSize[1] = 1;
-		globalWorkSize[0] = ((N-n-2)/BLOCK_SIZE + 1) * BLOCK_SIZE;//(N-n-1)*((N-n-2)/BLOCK_SIZE + 1);
-		globalWorkSize[1] = (N-n-2)/BLOCK_SIZE + 1;
+		//localWorkSize[1] = 1;
+		globalWorkSize[0] = (((N-n-2)/BLOCK_SIZE+1)*BLOCK_SIZE);//(N-n-1)*((N-n-2)/BLOCK_SIZE + 1);
+		//globalWorkSize[1] = (N-n-2)/BLOCK_SIZE + 1;
 
 		status = clEnqueueWriteBuffer(clCommandQue, d_lval, CL_FALSE, 0, mem_size_lval, h_lval, 0, NULL, NULL);
 		//status = clEnqueueWriteBuffer(clCommandQue, d_A, CL_FALSE, 0, mem_size_A, h_A, 0, NULL, NULL);
@@ -438,7 +438,7 @@ int main(int argc, char** argv)
 		//status = clEnqueueWriteBuffer(clCommandQue, d_y, CL_FALSE, 0, mem_size_y, h_y, 0, NULL, NULL);
 		//printf("Enter the dragon\n");
 		status = clEnqueueNDRangeKernel(clCommandQue, 
-				clKernel, 2, NULL, globalWorkSize, 
+				clKernel, 1, NULL, globalWorkSize, 
 				localWorkSize, 0, NULL, NULL);
 		if (status != CL_SUCCESS)
 			printf("clEnqueueNDRangeKernel error(%d)\n", status);
