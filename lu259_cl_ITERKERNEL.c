@@ -370,6 +370,7 @@ int main(int argc, char** argv)
 		//printf("denom: %f\n", *denom);
 		if(*nextDenom == 0.0)
 		{
+			printf("IN PIVOTING\n");
 			// PARTIAL PIVOTING FOR ROWS OF [A b]		
 			status = clEnqueueReadBuffer(clCommandQue, d_A, CL_TRUE, 0, mem_size_A, h_A, 0, NULL, NULL);
 			if (status != CL_SUCCESS)
@@ -405,6 +406,8 @@ int main(int argc, char** argv)
 		
 		for(i = n+1; i < N; i++)
 		{	
+			if (*nextDenom == 0.0)
+				printf("HI!");
 			lval[i] =  nextLval[i]/(*nextDenom);		
 		}
 		
@@ -428,7 +431,7 @@ int main(int argc, char** argv)
 		//globalWorkSize[1] = height_A;
 		localWorkSize[0] = BLOCK_SIZE;//(N-n-2)/BLOCK_SIZE + 1;
 		//localWorkSize[1] = 1;
-		globalWorkSize[0] = (((N-n-2)/BLOCK_SIZE+1)*BLOCK_SIZE)*((N-n-2)/BLOCK_SIZE + 1);//(N-n-1)*((N-n-2)/BLOCK_SIZE + 1);
+		globalWorkSize[0] = (((N-n-2)/BLOCK_SIZE+1))*((N-n-2)/BLOCK_SIZE + 1)*BLOCK_SIZE;//(N-n-1)*((N-n-2)/BLOCK_SIZE + 1);
 		//globalWorkSize[1] = (N-n-2)/BLOCK_SIZE + 1;
 
 		status = clEnqueueWriteBuffer(clCommandQue, d_lval, CL_FALSE, 0, mem_size_lval, h_lval, 0, NULL, NULL);
@@ -532,6 +535,7 @@ int main(int argc, char** argv)
 		x[n] = (y[n] - sum)/A[n*N+n];
 	}
 	*/
+	
 	
 	// TEMPORARILY ADDED IN FOR DEBUGGING PURPOSES BUT NOW FOR REAL
 	for(i = 0; i < N; i++)
