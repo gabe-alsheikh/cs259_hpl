@@ -88,6 +88,7 @@ int main(int argc, char** argv)
 	float *x = (float *) malloc(N*sizeof(float));
 	float *y = (float *) malloc(N*sizeof(float));
 	float *lval = (float *) malloc(N*sizeof(float));
+	float *nextLval = (float *) malloc(N*sizeof(float));
 	float *nextDenom = (float *) malloc(sizeof(float));
 	float *yPart = (float *) malloc((N/BLOCK_SIZE_SUB)*sizeof(float));
 	float *xPart = (float *) malloc((N/BLOCK_SIZE_SUB)*sizeof(float));
@@ -162,6 +163,7 @@ int main(int argc, char** argv)
 	unsigned int size_x = height_x;
 	unsigned int size_y = height_y;
 	unsigned int size_lval = height_lval;
+	unsigned int size_nextLval = height_lval;
 	unsigned int mem_size_A = sizeof(float) * size_A;
 	unsigned int mem_size_A0 = sizeof(float) * size_A0;
 	unsigned int mem_size_L = sizeof(float) * size_L;
@@ -170,6 +172,7 @@ int main(int argc, char** argv)
 	unsigned int mem_size_x = sizeof(float) * size_x;
 	unsigned int mem_size_y = sizeof(float) * size_y;
 	unsigned int mem_size_lval = sizeof(float) * size_lval;
+	unsigned int mem_size_nextLval = sizeof(float) * size_nextLval;
 	unsigned int mem_size_nextDenom = sizeof(float);
 	unsigned int mem_size_yPart = sizeof(float) * (N/BLOCK_SIZE_SUB);
 	unsigned int mem_size_xPart = sizeof(float) * (N/BLOCK_SIZE_SUB);
@@ -181,6 +184,7 @@ int main(int argc, char** argv)
 	float* h_x = x;
 	float* h_y = y;
 	float* h_lval = lval;
+	float* h_nextLval = nextLval;
 	float* h_nextDenom = nextDenom;
 	float* h_yPart = yPart;
 	float* h_xPart = xPart;
@@ -263,6 +267,7 @@ int main(int argc, char** argv)
 	cl_mem d_x;
 	cl_mem d_y;
 	cl_mem d_lval;
+	cl_mem d_nextLval;
 	cl_mem d_nextDenom;
 	cl_mem d_yPart;
 	cl_mem d_xPart;
@@ -280,6 +285,7 @@ int main(int argc, char** argv)
 	d_b = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, mem_size_b, h_b, &status);
 	d_y = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, mem_size_y, h_y, &status);
 	d_lval = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, mem_size_lval, h_lval, &status);
+	d_nextLval = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, mem_size_nextLval, h_nextLval, &status);
 	d_nextDenom = clCreateBuffer(context, CL_MEM_READ_WRITE, mem_size_nextDenom, NULL, &status);
 	d_yPart = clCreateBuffer(context, CL_MEM_READ_WRITE, mem_size_yPart, NULL, &status);
 	d_xPart = clCreateBuffer(context, CL_MEM_READ_WRITE, mem_size_xPart, NULL, &status);
@@ -337,8 +343,9 @@ int main(int argc, char** argv)
 	
 	status = clSetKernelArg(clKernel, 0, sizeof(cl_mem), (void *)&d_A);
 	status |= clSetKernelArg(clKernel, 1, sizeof(cl_mem), (void *)&d_lval);
-	status |= clSetKernelArg(clKernel, 2, sizeof(cl_mem), (void *)&d_nextDenom);
-	status |= clSetKernelArg(clKernel, 4, sizeof(int), (void *)&N);
+	status |= clSetKernelArg(clKernel, 2, sizeof(cl_mem), (void *)&d_nextLval);
+	status |= clSetKernelArg(clKernel, 3, sizeof(cl_mem), (void *)&d_nextDenom);
+	status |= clSetKernelArg(clKernel, 5, sizeof(int), (void *)&N);
 	if (status != CL_SUCCESS)
 			printf("clSetKernelArg error(%d)\n", status);
 
@@ -355,7 +362,7 @@ int main(int argc, char** argv)
 	// Ready for pivoting
 	*nextDenom = A[0];
 	for (i = 0; i < N; i++)
-		lval[i] = A[i*N];
+		nextLval[i] = A[i*N];
 	
 	int n, z;
 	for (n = 0; n < N-1; n++)
@@ -398,12 +405,12 @@ int main(int argc, char** argv)
 		
 		for(i = n+1; i < N; i++)
 		{	
-			lval[i] /= (*nextDenom);		
+			lval[i] =  nextLval[i]/(*nextDenom);		
 		}
 		
 		//status  = clSetKernelArg(clKernel, 0, sizeof(cl_mem), (void *)&d_x);
 		//status |= clSetKernelArg(clKernel, 0, sizeof(cl_mem), (void *)&d_A);
-		status |= clSetKernelArg(clKernel, 3, sizeof(int), (void *)&n);
+		status |= clSetKernelArg(clKernel, 4, sizeof(int), (void *)&n);
 		//status |= clSetKernelArg(clKernel, 2, sizeof(int), (void *)&N);
 		//status |= clSetKernelArg(clKernel, 1, sizeof(cl_mem), (void *)&d_L);
 		//status |= clSetKernelArg(clKernel, 3, sizeof(cl_mem), (void *)&d_b);
@@ -421,8 +428,8 @@ int main(int argc, char** argv)
 		//globalWorkSize[1] = height_A;
 		localWorkSize[0] = BLOCK_SIZE;//(N-n-2)/BLOCK_SIZE + 1;
 		localWorkSize[1] = 1;
-		globalWorkSize[0] =  ((N-n-2)/BLOCK_SIZE + 1) * BLOCK_SIZE;//(N-n-1)*((N-n-2)/BLOCK_SIZE + 1);
-		globalWorkSize[1] =  (N-n-2)/BLOCK_SIZE + 1;
+		globalWorkSize[0] = ((N-n-2)/BLOCK_SIZE + 1) * BLOCK_SIZE;//(N-n-1)*((N-n-2)/BLOCK_SIZE + 1);
+		globalWorkSize[1] = (N-n-2)/BLOCK_SIZE + 1;
 
 		status = clEnqueueWriteBuffer(clCommandQue, d_lval, CL_FALSE, 0, mem_size_lval, h_lval, 0, NULL, NULL);
 		//status = clEnqueueWriteBuffer(clCommandQue, d_A, CL_FALSE, 0, mem_size_A, h_A, 0, NULL, NULL);
@@ -438,7 +445,7 @@ int main(int argc, char** argv)
 		//printf("Exit the dragon\n");
 		// 8. Retrieve result from device
 		status = clEnqueueReadBuffer(clCommandQue, d_nextDenom, CL_TRUE, 0, mem_size_nextDenom, h_nextDenom, 0, NULL, NULL);
-		status = clEnqueueReadBuffer(clCommandQue, d_lval, CL_TRUE, 0, mem_size_lval, h_lval, 0, NULL, NULL);
+		status = clEnqueueReadBuffer(clCommandQue, d_nextLval, CL_TRUE, 0, mem_size_nextLval, h_nextLval, 0, NULL, NULL);
 		//status = clEnqueueReadBuffer(clCommandQue, d_x, CL_TRUE, 0, mem_size_x, h_x, 0, NULL, NULL);
 		//status = clEnqueueReadBuffer(clCommandQue, d_A, CL_TRUE, 0, mem_size_A, h_A, 0, NULL, NULL);
 		//status = clEnqueueReadBuffer(clCommandQue, d_L, CL_TRUE, 0, mem_size_L, h_L, 0, NULL, NULL);
@@ -448,7 +455,7 @@ int main(int argc, char** argv)
 		//printf("HERE1\n");
 		//printf("nextDenom: %f\n", *nextDenom);
 		//*denom = *nextDenom;
-		//printf("ITERATION %d COMPLETE\n", n);
+		printf("ITERATION %d COMPLETE\n", n);
 		
 	}
 	status = clEnqueueReadBuffer(clCommandQue, d_A, CL_TRUE, 0, mem_size_A, h_A, 0, NULL, NULL);
