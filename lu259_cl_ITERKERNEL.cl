@@ -1,41 +1,60 @@
-#define BLOCK_SIZE 128
-#define BLOCK_SIZE_SUB 128
-
+#define BLOCK_SIZE 4
+#define BLOCK_SIZE_SUB 4
 __kernel void
 LUFact(
-	__global float* A,
-	__global float* denom,
-	__global float* nextDenom,
+	__global double* A,
+	__global double* lval, // an array of size N
+	__global double* nextDenom,
 	int n,
 	int N)
 {
-	// N-n-1 work-groups, N/BLOCK_SIZE work-items each
-	int row = get_group_id(0) + n+1;
-	int item = get_local_id(0);
-	int cStart = (n/BLOCK_SIZE + item) * BLOCK_SIZE;
+	// ceil((N-n-1)/BLOCK_SIZE)-by-ceil((N-n-1)/BLOCK_SIZE) work-groups
+	// BLOCK_SIZE work-items per group
+	int brStart = BLOCK_SIZE * ((n+1)/BLOCK_SIZE + get_group_id(0));
+	int rEnd = brStart + BLOCK_SIZE;
+	int t = get_local_id(0);
+	int row = brStart + t;
+	int cStart = BLOCK_SIZE * ((n+1)/BLOCK_SIZE + get_group_id(1));
 	int cEnd = cStart + BLOCK_SIZE;
 	int rStart = row*N;
 	int nStart = n*N;
-	// load rows n, row?
-	float lval = A[rStart+n]/(*denom);
-	barrier(CLK_GLOBAL_MEM_FENCE);
-	if(item == 0)
-		A[rStart+n] = lval;
-	lval = -lval;
-	int i = (n+1) < cStart ? cStart : (n+1);
-	if(i > cStart && i < cEnd)
+	/*__local double Lcurr[BLOCK_SIZE];
+	__local double Acurr[BLOCK_SIZE];
+	async_work_group_copy(Lcurr, lval+brStart, BLOCK_SIZE, 0);
+	async_work_group_copy(Acurr, A+nStart+cStart, BLOCK_SIZE, 0);*/
+	double l = lval[row];//Lcurr[t];
+	barrier(CLK_GLOBAL_MEM_FENCE); // may not be needed
+	if(row >= n+1)
 	{
-		for(; i%4 != 0; i++)
-			A[rStart+i] += lval*A[nStart+i];
+		double lneg = -l;
+		int i = (n+1) < cStart ? cStart : (n+1);
+		if(i > cStart && i < cEnd)
+			for(; i%4 != 0; i++)
+				A[rStart+i] += lneg*A[nStart+i];
+		/*int i = (n+1) < cStart ? 0 : (n+1-cStart);
+		if(i > 0)
+			for(; i%4 != 0; i++)
+				A[rStart+cStart+i] += lneg*Acurr[i];*/
+		// pipeline here
+		for(; i < cEnd; i+=4)
+		{
+			A[rStart+i] += lneg*A[nStart+i];
+			A[rStart+i+1] += lneg*A[nStart+i+1];
+			A[rStart+i+2] += lneg*A[nStart+i+2];
+			A[rStart+i+3] += lneg*A[nStart+i+3];
+		}
+		/*for(; i < BLOCK_SIZE; i+=4)
+		{
+			A[rStart+cStart+i] += lneg*Acurr[i];
+			A[rStart+cStart+i+1] += lneg*Acurr[i+1];
+			A[rStart+cStart+i+2] += lneg*Acurr[i+2];
+			A[rStart+cStart+i+3] += lneg*Acurr[i+3];
+		}*/
 	}
-	__attribute__((xcl_pipeline_loop))
-	for(; i < cEnd; i+=4)
+	if(cStart <= n+1 && cEnd > n+1)
 	{
-		A[rStart+i] += lval*A[nStart+i];
-		A[rStart+i+1] += lval*A[nStart+i+1];
-		A[rStart+i+2] += lval*A[nStart+i+2];
-		A[rStart+i+3] += lval*A[nStart+i+3];
+		lval[row] = A[rStart+n+1]; // use this and nextDenom to generate next lvals
+		if(row == n+1)
+			*nextDenom = A[rStart+n+1];
 	}
-	if(row == n+1 && cStart <= n+1 && cEnd > n+1)
-		*nextDenom = A[rStart+n+1];
 }
