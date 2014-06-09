@@ -38,32 +38,48 @@ lu259_cl_ITERKERNEL_v7.cl
 Added a pipeline attribute before the second loop in LUFact
 
 lu259_cl_ITERKERNEL_v8.c
+Removed substitution kernel calls and initialization
+
+lu259_cl_ITERKERNEL_v8.cl and h
 Removed substitution kernels
 
 lu259_cl_ITERKERNEL_v9.c
+Changes to local/global work size in host and cStart in kernel
 Changed group sizes to new scheme:
 Basically i'm trying to have the first w-i include column n (though technically we just need n+1), since we can ignore the stuff to the left of it
 the last slice should line up with the end
 change the host code to 1D w-g's and 1D w-i's, usual number of groups, and the given number of w-i's (this changes every BLOCK_SIZE iterations)
 before:
-_________
+__________
 |_________|
 |         |
 |_________|
 after:
 _________
-|      ______|
-|     |      |
-|________|
-*|__|______|
+|  ______|
+| |      |
+|_|______|
+*|__|____|
 the implication is that we don't have work items that do nothing
 (actually, there's an OB1 where one w-i each group is doing nothing occasionally, but it's not a big deal)
-
+basically, before it made w-i's for the area under the line inside the matrix
+after, it deals with the inner box only, which is where the action is
 
 lu259_cl_ITERKERNEL_v9.cl and h
 Changed cStart to reflect new change
 
-OPTIMIZATIONS:
+
+lu259_cl_ITERKERNEL_v9b.X
+Changed to a blocked scheme that works off blocks in the matrix rather than slices of rows
+
+lu259_cl_ITERKERNEL_v9c.X
+Like 9b but fixed up so it works
+
+lu259_cl_ITERKERNEL_v9d.X
+Removes the user of nextDenom from the host file and kernel
+
+
+II. OPTIMIZATIONS:
 OPTIMIZATIONS DURING DEVELOPMENT:
 -Our in-place A matrix is a minor optimization, but since that was our "starting point" we don't have numbers for it.
 -Our work groups are functions of N and the BLOCK_SIZE, rather than having work-groups of size 1.
@@ -73,28 +89,40 @@ needed back in host memory.
 
 
 
-1)
+1) (corresponds to v5)
 I declared two variables, rStart and nStart, that make it so that there is no multiplication in the
 address offset calculations. Done in the LUFact kernel.
 
-2)
+2) (corresponds to v6)
 Changing block size to 128. Very minimal speedups.
 
 3) 
 Pipelining the second loop in LUFact kernel
 
 4)
--N 4 duplication for LUFact kernel
+-N 4 duplication for LUFact kernel (change in lu259_fpga.tcl; use v7)
 
 5)
 REMOVED SUBSTITUTION KERNELS (corresponds to v8)
 Why? The biggest thing is that it does 2048 kernel launches for O(N) operations for each substitution
 For LUFact, it does 1024 launches for O(N^2) operations
+Sub takes 1/512ish of computation time
 This is part of the reason why i/we tried a single kernel first
+This is done also to allow for more area for the the LU factorization kernel
+
+6) (corresponds to v9/v9b/v9c)
+Changed group sizes to new scheme:
+Basically i'm trying to have the first w-i include column n (though technically we just need n+1), since we can ignore the stuff to the left of it
+the last slice should line up with the end
+change the host code to 1D w-g's and 1D w-i's, usual number of groups, and the given number of w-i's (this changes every BLOCK_SIZE iterations)
+THIS IS CURRENTLY ON HOLD! IT IS NOT WORKING CORRECTLY ON THE FPGA AND EXPERIENCING A SLOWDOWN
+HOLD RELEASED. VERSION 9B WORKING ON FPGA, BUT PROCESS KILLED FOR N 1024
+SAME WITH VERSION 9C.
+BLOCK SIZE INCREASED TO 32! PROCESS DOES NOT DIE AT N 1024. DEATH WAS DUE TO OVERLY LARGE GLOBAL SIZE
 
 
 RUN TIMES ON FPGA:
-1) No optimizations, base version with A modified in-place, both BLOCK_SIZE are 64
+0) No optimizations, base version with A modified in-place, both BLOCK_SIZE are 64
 N		Time(s)
 64		0.16
 128		0.85
@@ -102,7 +130,7 @@ N		Time(s)
 512		35.02
 1024	254.29
 
-2) Optimization #1
+1) Optimization #1
 N		Time(s)
 64		0.16
 128		0.83
@@ -111,7 +139,7 @@ N		Time(s)
 1024	247.58
 
 
-3) Optimization #2
+2) Optimization #2
 N		Time(s)
 64		N/A; can't do since block size is 128
 128		0.83
@@ -122,7 +150,7 @@ Why not a huge speedup?
 Guess: Since there's no local memory, block size will not affect it much
 
 
-4) Optimization #3
+3) Optimization #3
 N		Time(s)
 64		N/A
 128		0.83
@@ -130,10 +158,28 @@ N		Time(s)
 512		33.64
 1024	243.39
 
-5) Optimization #4
+4) Optimization #4
 N		Time(s)
 64		N/A
 128		0.42
 256		1.87
 512		12.27
 1024	94.53
+
+5) Optimization #5
+N		Time(s)
+64		N/A
+128		0.39
+256		1.72
+512		11.87
+1024	93.36
+
+6) Optimization #6
+BLOCK SIZE 32
+N		Time(s)
+64		0.03
+128		0.20
+256		1.54
+512		11.89
+1024	94.90
+
