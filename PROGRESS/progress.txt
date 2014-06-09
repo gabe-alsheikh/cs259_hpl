@@ -70,10 +70,11 @@ Changed cStart to reflect new change
 
 
 lu259_cl_ITERKERNEL_v9b.X
-Changed to a blocked scheme that works off blocks in the matrix rather than slices of rows
+Changed to a 1D blocked scheme that works off blocks in the matrix rather than slices of rows
 
 lu259_cl_ITERKERNEL_v9c.X
-Like 9b but fixed up so it works
+Uses 2D block scheme and block size changed from 16 to 32 in order to facilitate N=1024 on FPGA
+(was killed before for 1024, probably because global size was too large, not large enough BLOCK_SIZE to divide)
 
 lu259_cl_ITERKERNEL_v9d.X
 Removes the user of nextDenom from the host file and kernel
@@ -110,7 +111,7 @@ Sub takes 1/512ish of computation time
 This is part of the reason why i/we tried a single kernel first
 This is done also to allow for more area for the the LU factorization kernel
 
-6) (corresponds to v9/v9b/v9c)
+6) (corresponds to v9/v9b/v9c/v9d)
 Changed group sizes to new scheme:
 Basically i'm trying to have the first w-i include column n (though technically we just need n+1), since we can ignore the stuff to the left of it
 the last slice should line up with the end
@@ -120,6 +121,8 @@ HOLD RELEASED. VERSION 9B WORKING ON FPGA, BUT PROCESS KILLED FOR N 1024
 SAME WITH VERSION 9C.
 BLOCK SIZE INCREASED TO 32! PROCESS DOES NOT DIE AT N 1024. DEATH WAS DUE TO OVERLY LARGE GLOBAL SIZE
 
+7) (corresponds to v10) 
+Used local memory in kernel for current rows of L and A
 
 RUN TIMES ON FPGA:
 0) No optimizations, base version with A modified in-place, both BLOCK_SIZE are 64
@@ -175,7 +178,7 @@ N		Time(s)
 1024	93.36
 
 6) Optimization #6
-BLOCK SIZE 32
+NOTE: BLOCK SIZE 32
 N		Time(s)
 64		0.03
 128		0.20
@@ -183,3 +186,11 @@ N		Time(s)
 512		11.89
 1024	94.90
 
+7) Optimization #7
+NOTE: BLOCK SIZE 32
+N		Time(s)
+64		0.02
+128		0.12
+256		0.88
+512		6.81
+1024	54.15
