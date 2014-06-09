@@ -32,7 +32,7 @@ lu259_cl_ITERKERNEL_v6.cl and .h
 Changed block size to 128
 
 lu259_cl_ITERKERNEL_v7.c 
-Removed unnecessary variables being allocated with memory
+Removed unused variables being allocated with memory
 
 lu259_cl_ITERKERNEL_v7.cl
 Added a pipeline attribute before the second loop in LUFact
